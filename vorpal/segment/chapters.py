@@ -58,9 +58,10 @@ class Section:
     number: int = None        # printed chapter number, when present
     words: int = 0
     flags: list = field(default_factory=list)
+    body: str = ""            # EPUB/TXT: body stored here; PDF: empty (reconstructed from pages)
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id, "title": self.title, "kind": self.kind,
             "include": self.include, "spoken_intro": self.spoken_intro,
             "start": list(self.start), "end": list(self.end) if self.end else None,
@@ -68,6 +69,9 @@ class Section:
             "source": self.source, "confidence": round(self.confidence, 2),
             "words": self.words, "flags": self.flags,
         }
+        if self.body:
+            d["body"] = self.body
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "Section":
@@ -76,7 +80,7 @@ class Section:
             start=tuple(d["start"]), end=tuple(d["end"]) if d.get("end") else None,
             source=d.get("source", "manual"), confidence=d.get("confidence", 0.0),
             spoken_intro=d.get("spoken_intro", ""), words=d.get("words", 0),
-            flags=d.get("flags", []),
+            flags=d.get("flags", []), body=d.get("body", ""),
         )
 
 
@@ -400,5 +404,11 @@ def detect_chapters(pages, outline: list = None) -> tuple:
 
 
 def section_body(section: Section, pages) -> str:
-    """Public accessor for a section's narrated body text."""
+    """Public accessor for a section's narrated body text.
+
+    For EPUB/TXT sections the body is stored inline on the section (no pages);
+    for PDF sections it is reconstructed from page-block references.
+    """
+    if section.body:
+        return section.body
     return _section_text(section, {p.index: p for p in pages})

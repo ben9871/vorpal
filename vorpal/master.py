@@ -9,6 +9,7 @@ Constant-memory assembly via ffmpeg concat demuxer:
   6. report.md QA summary
 """
 
+import hashlib
 import json
 import subprocess
 import wave
@@ -18,6 +19,9 @@ from typing import Optional
 
 from .binaries import require_ffmpeg
 from .synth import safe_filename
+
+# Chapter shorter than this (seconds) triggers a duration warning.
+SHORT_CHAPTER_THRESHOLD_S = 60
 
 
 @dataclass
@@ -241,6 +245,7 @@ def _write_report_md(
     output_path: Path,
     chapter_results: list,
     target_lufs: float = -18.0,
+    chapter_gate: Optional[dict] = None,
 ) -> None:
     """Write report.md consolidating all QA data from the pipeline."""
     lines = ["# Audiobook Build Report\n"]
@@ -326,6 +331,28 @@ def _write_report_md(
     else:
         lines.append("No loudness measurements available.")
 
+    # ── Chapter gate ──────────────────────────────────────────────────────
+    lines.append("\n## Chapter Gate\n")
+    if chapter_gate:
+        if chapter_gate.get("error"):
+            lines.append(f"- {chapter_gate['error']}")
+        elif chapter_gate.get("ok") is True:
+            lines.append(f"- Chapter count: {chapter_gate['chapter_count']} **PASS**")
+            short = chapter_gate.get("short_chapters", [])
+            if short:
+                for sc in short:
+                    lines.append(f"- WARNING: short chapter '{sc['title'][:40]}' "
+                                 f"({sc['duration_s']:.0f} s < {SHORT_CHAPTER_THRESHOLD_S} s)")
+            else:
+                lines.append("- No suspiciously short chapters detected")
+        else:
+            lines.append(
+                f"- Chapter count: expected {chapter_gate.get('expected_count')}, "
+                f"got {chapter_gate.get('chapter_count')} **FAIL**"
+            )
+    else:
+        lines.append("- Gate not run")
+
     # ── Output summary ────────────────────────────────────────────────────
     lines.append("\n## Output\n")
     total_ms = sum(ch["duration_ms"] for ch in chapter_results)
@@ -342,6 +369,100 @@ def _write_report_md(
         lines.append(f"- **File:** `{output_path}`")
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# ── mastering cache ───────────────────────────────────────────────────────
+
+def _wav_sha256(wav_path: Path) -> str:
+    h = hashlib.sha256()
+    with open(wav_path, "rb") as f:
+        while chunk := f.read(1 << 20):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _master_cache_path(m4a_path: Path) -> Path:
+    return m4a_path.with_suffix(".cache.json")
+
+
+def _master_cache_hit(m4a_path: Path, wav_sha: str,
+                      target_lufs: float, aac_bitrate: str) -> Optional[float]:
+    """Return cached output_i LUFS if the M4A is fresh, else None."""
+    if not m4a_path.exists():
+        return None
+    cache_path = _master_cache_path(m4a_path)
+    if not cache_path.exists():
+        return None
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+        if (data.get("wav_sha256") == wav_sha
+                and data.get("target_lufs") == target_lufs
+                and data.get("aac_bitrate") == aac_bitrate):
+            return float(data["output_i"])
+    except Exception:
+        pass
+    return None
+
+
+def _master_cache_write(m4a_path: Path, wav_sha: str,
+                        target_lufs: float, aac_bitrate: str, output_i: float) -> None:
+    cache_path = _master_cache_path(m4a_path)
+    cache_path.write_text(
+        json.dumps({"wav_sha256": wav_sha, "target_lufs": target_lufs,
+                    "aac_bitrate": aac_bitrate, "output_i": output_i}),
+        encoding="utf-8",
+    )
+
+
+# ── duration / marker-count gates ────────────────────────────────────────
+
+def _check_m4b_chapters(m4b_path: Path, expected_count: int) -> dict:
+    """Verify chapter count and flag suspiciously short chapters via ffprobe.
+
+    Returns {ok, chapter_count, short_chapters, error}.
+    """
+    try:
+        from .binaries import find_ffprobe
+        ffprobe = find_ffprobe()
+        if not ffprobe:
+            return {"ok": None, "error": "ffprobe not found; skipping chapter gate"}
+    except Exception:
+        return {"ok": None, "error": "ffprobe not available; skipping chapter gate"}
+
+    result = subprocess.run(
+        [ffprobe, "-v", "quiet", "-print_format", "json",
+         "-show_chapters", str(m4b_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return {"ok": False, "error": f"ffprobe failed: {result.stderr[-200:]}"}
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": f"ffprobe JSON parse error: {e}"}
+
+    chapters = data.get("chapters", [])
+    actual_count = len(chapters)
+
+    short = []
+    for ch in chapters:
+        try:
+            duration_s = float(ch.get("end_time", 0)) - float(ch.get("start_time", 0))
+            title = ch.get("tags", {}).get("title", f"Chapter {ch.get('id', '?')}")
+            if duration_s < SHORT_CHAPTER_THRESHOLD_S:
+                short.append({"title": title, "duration_s": round(duration_s, 1)})
+        except (ValueError, TypeError):
+            pass
+
+    ok = actual_count == expected_count
+    return {
+        "ok": ok,
+        "chapter_count": actual_count,
+        "expected_count": expected_count,
+        "short_chapters": short,
+        "error": None,
+    }
 
 
 # ── main entry point ──────────────────────────────────────────────────────
@@ -385,21 +506,38 @@ def compile_m4b(
     except Exception:
         sample_rate = 24000  # Kokoro default
 
-    # ── Per-chapter loudnorm + AAC encode ────────────────────────────────
+    # ── Per-chapter loudnorm + AAC encode (with mastering cache) ─────────
     chapter_m4as = []
     loudness_results = []
 
     for i, ch in enumerate(chapter_results):
         out_m4a = normalized_dir / f"{i + 1:02d}_{safe_filename(ch['title'])}.m4a"
         print(f"  [{i + 1}/{len(chapter_results)}] {ch['title'][:50]}", end="", flush=True)
-        lr = loudnorm_chapter(
-            ch["wav"], out_m4a, ch["title"], ffmpeg,
-            target_lufs=target_lufs, aac_bitrate=aac_bitrate,
-        )
-        gate_str = "PASS" if lr.within_gate else "FAIL"
-        print(f"  {lr.input_i:+.1f} → {lr.output_i:+.1f} LUFS  [{gate_str}]")
+
+        # Check mastering cache: if WAV unchanged and settings match, reuse M4A
+        wav_sha = _wav_sha256(ch["wav"])
+        cached_i = _master_cache_hit(out_m4a, wav_sha, target_lufs, aac_bitrate)
+        if cached_i is not None:
+            within_gate = abs(cached_i - target_lufs) <= 1.0
+            gate_str = "PASS" if within_gate else "FAIL"
+            print(f"  {cached_i:+.1f} LUFS  [{gate_str}]  (cached)")
+            loudness_results.append(LoudnessResult(
+                chapter_title=ch["title"],
+                input_i=cached_i,
+                output_i=cached_i,
+                within_gate=within_gate,
+            ))
+        else:
+            lr = loudnorm_chapter(
+                ch["wav"], out_m4a, ch["title"], ffmpeg,
+                target_lufs=target_lufs, aac_bitrate=aac_bitrate,
+            )
+            gate_str = "PASS" if lr.within_gate else "FAIL"
+            print(f"  {lr.input_i:+.1f} → {lr.output_i:+.1f} LUFS  [{gate_str}]")
+            _master_cache_write(out_m4a, wav_sha, target_lufs, aac_bitrate, lr.output_i)
+            loudness_results.append(lr)
+
         chapter_m4as.append(out_m4a)
-        loudness_results.append(lr)
 
     n_fail = sum(1 for lr in loudness_results if not lr.within_gate)
     if n_fail:
@@ -468,6 +606,19 @@ def compile_m4b(
             "M4B concat assembly",
         )
 
+    # ── Chapter-count and duration sanity gate ───────────────────────────
+    gate = _check_m4b_chapters(m4b_path, len(chapter_results))
+    if gate.get("error"):
+        print(f"  Chapter gate: {gate['error']}")
+    elif not gate["ok"]:
+        print(f"  WARNING: expected {gate['expected_count']} chapters in M4B, "
+              f"got {gate['chapter_count']}")
+    else:
+        print(f"  Chapter gate: {gate['chapter_count']} chapters verified")
+    for sc in gate.get("short_chapters", []):
+        print(f"  WARNING: short chapter '{sc['title'][:40]}' "
+              f"({sc['duration_s']:.0f} s < {SHORT_CHAPTER_THRESHOLD_S} s)")
+
     # ── MP3 side product ──────────────────────────────────────────────────
     mp3_dir = Path(f"{output_stem}_chapters_mp3")
     print(f"  Writing MP3 side product → {mp3_dir}/")
@@ -483,6 +634,7 @@ def compile_m4b(
         m4b_path,
         chapter_results,
         target_lufs=target_lufs,
+        chapter_gate=gate,
     )
     print(f"  QA report → {report_path}")
 

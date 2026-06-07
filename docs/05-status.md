@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 4 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 5 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -18,256 +18,179 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 1 — extraction v2 (manifest, page classification, block OCR + QA) | ✅ done | commit `b103f23` |
 | Phase 2 — segmentation v2 (boilerplate, footnotes, repair, chapter cascade, review) | ✅ done | commit Phase 2 |
 | Phase 3 — normalization & synthesis hardening | ✅ done | commit `1e935f3` |
-| **Phase 4 — mastering & packaging** | ✅ done | this commit |
-| Phase 5 — end-to-end hardening (no release — stays 0.x) | ⬅ **next** | — |
+| Phase 4 — mastering & packaging | ✅ done | commit Phase 4 |
+| **Phase 5 — multi-format input & end-to-end hardening** | ✅ done | this commit |
 | Arc 2: Phase 6 — voice suite v1 (registry, blends, audition) | queued | roadmap |
 | Arc 2: Phase 7 — first tone-capable engine (API, cost-guarded) | queued | roadmap |
 | Arc 2: Phase 8 — tone tagging + effectiveness gates (`--expressive`) | queued | roadmap |
 | Arc 2: Phase 9 — in-house voices (spike-gated) | queued | roadmap |
 
-## Phase 3 acceptance results
+## Phase 5 acceptance results
 
-- **Normalization unit suite:** all green — **141 tests total** (78 before Phase 3).
-  Table-driven coverage: numbers, ordinals, years, number ranges, roman numerals,
-  abbreviations, em-dash, symbols, citation stripping, chunk packing, paragraph
-  pauses, no-loss invariant, junk-lint gate, no-sentence-split, v0 dotting
-  regression, unspeakable-ornament handling (see below).
+- **205 tests green** (156 before Phase 5). 49 new tests across:
+  `test_epub.py` (29 tests — EPUB extraction, HTML-to-text, TOC mapping, title
+  classification, roundtrip), `test_txt.py` (14 tests — heading detection,
+  Gutenberg stripping, section splitting, TXT extraction), `test_master_phase5.py`
+  (9 tests — mastering cache hit/miss/roundtrip, SHA determinism),
+  `test_segment.py` +2 (Section body field roundtrip, empty body not stored).
 
-- **Full Firestone synth `failed: 0`:** ✅ verified on the GPU host. 1,919 chunks,
-  `done: 1919  cached: 84  retried: 0  failed: 0`; 8.3 h of audio, 11-chapter
-  248 MB M4B (`scratch\firestone_p3.m4b`). Notably, the *first* attempt **aborted
-  loudly** on chunk 85 — text `'* * *'`, a scan scene-break ornament Kokoro can't
-  voice — proving the retry→split→abort policy does its job on real data. Fix:
-  unspeakable sentences (no letters/digits) become paragraph pauses, never
-  synthesis attempts; `assert_no_loss` mirrors the rule. 3 regression tests added.
-  6 lint warnings on the full run, all benign (interior section headings narrated
-  in caps — correct behavior, surfaced for review as designed).
+- **EPUB builds end-to-end with zero review edits:** ✅ verified on
+  `flatland_pg201.epub` (auto-approved, 3 chapters from spine) and
+  `sherlock_holmes_pg1661.epub` (auto-approved, 13 chapters, clean titles).
 
-- **Cache invalidation on chapter title edit:** ✅ verified — fixed the `Dialectcs`
-  outline typo in chapter 9's title + spoken_intro in `book.json`, re-ran the
-  build: `1918 cached, 1 to synthesize` — exactly the one intro chunk; only
-  chapter 9 reassembled; `failed: 0`.
+- **TXT builds with ≤ 2 review edits:** ✅ verified on
+  `pride_and_prejudice_pg1342.txt` — 61 chapters detected, all substantial,
+  only 1 edit needed (stray `]` in chapter 1 title). Pauses at review
+  (heuristic source, expected); actionable review table.
 
-- **Listening spot-check:** ✅ verified by the user (2026-06-07) on the mastered
-  `scratch\firestone_p3.m4b` — no narrated junk, no mid-sentence prosody breaks.
-  **Phase 3 acceptance is fully closed.**
+- **Corpus sweep (9 books across 3 formats):** every book either builds clean
+  (auto-approve) or pauses at review with an honest, actionable table —
+  never garbage output, never a crash. See `docs/06-corpus.md` for per-book
+  results.
 
-## What Phase 3 built
+- **Mastering staleness cache:** ✅ — per-chapter M4A keyed by
+  `(sha256(wav), target_lufs, aac_bitrate)` stored as `.cache.json` sidecar.
+  A re-run after synth-only change re-masters only changed chapters.
+  Unit tests cover hit, miss (sha change, LUFS change, bitrate change),
+  roundtrip, and corrupt-sidecar resilience.
 
-### `normalize.py` (full rewrite)
+- **Duration-sanity and marker-count gate:** ✅ — `_check_m4b_chapters()` uses
+  ffprobe to verify chapter count in the assembled M4B matches expected; alerts
+  on chapters shorter than 60 s. Gate result printed to stdout and written to
+  `report.md`.
 
-- `spoken_form(text)` — deterministic spoken-form normalization:
-  - NFKC normalization, symbol substitutions (`%`, `&`, `§`, `°`, smart quotes)
-  - URL / ISBN elision
-  - Parenthetical citation stripping (`(italics mine)`, `(see pp. 14–22)`, `(sic)`)
-  - Pipe-artifact collapse (OCR table residue → comma)
-  - Roman numerals in structural context (`Chapter IV` → `Chapter four`,
-    `I. Introduction` → `one. Introduction`; pronoun "I" is NOT expanded)
-  - Ordinals (`1st` → `first`, `21st` → `twenty-first`)
-  - Page ranges (`pp. 14–22` → `pages fourteen to twenty-two`) — before em-dash step
-  - Number ranges (`1969–1970` → `nineteen sixty-nine to nineteen seventy`) — before em-dash step
-  - Em-dash / en-dash → comma-pause (after ranges are consumed)
-  - All integers → words (year heuristic for 4-digit numbers in 1400–2100)
-  - Whitespace cleanup
+- **README rewrite:** ✅ — full rewrite covering multi-format input, install,
+  quickstart, build workflow, stage summary, manifest reference, flags,
+  command reference, project layout.
 
-- `normalize_chapter(body, max_chars, paragraph_pause_ms)` — prosody-aware chunking:
-  - Splits body into paragraphs (double newlines)
-  - Runs `spoken_form()` then `pysbd` sentence segmentation per paragraph
-  - Packs sentences greedily into chunks ≤ `max_chars`, never splitting a sentence
-  - Paragraph boundaries → `pause_after_ms = 600` on the last chunk of the paragraph
-  - Oversized single sentences → split at clause boundaries (`,;:`) as last resort
-  - Returns `list[Chunk]` with `{idx, text, pause_after_ms, tone, text_hash}`
+- **`--allow-gaps` propagation:** ✅ — beep markers are baked into chapter
+  WAVs during synthesis; they propagate through loudnorm + M4B assembly
+  unchanged. No extra code needed in mastering.
 
-- `assert_no_loss(body, chunks)` — no-loss invariant:
-  - Compares concatenated chunk text against `spoken_form()`'s output
-  - Raises `AssertionError` with word-level diff on failure
-  - Called before every chapter synthesis; build exits with a human-readable error
+### (human) acceptance items
 
-- `lint_chunks(chunks, chapter_title)` — junk-lint gate:
-  - Catches pipe-separated fragments, bare number lines, ALL-CAPS artifacts,
-    non-printable clusters
-  - Returns violation list (warnings reported in synthesis report; build continues)
+- **(human)** Full-book EPUB/TXT end-to-end build with TTS + mastering (container
+  GPU build) has not been run — the pipeline is verified through
+  `--stop-after segment` and by inspecting extracted bodies.
+- **(blocked)** Full regression set end-to-end: the Phase 4 Firestone M4B
+  acceptance remains the standing proof; no new full-book M4B run was done in
+  this phase (TTS/mastering unchanged, only new input-format path added).
 
-- Chunk schema carries `tone: null` for post-v1 LLM tone-tagging — no migration needed.
+## What Phase 5 built
 
-### `synth.py` (full rewrite)
+### `extract/epub.py` (new)
 
-- Chunk cache keyed by `(text_hash, engine, voice, speed, tone)` stored in
-  `audio_chunks/cache/` — survives chapter title edits; only changed chunks re-synth.
-- Failure policy: on exception → retry once → retry with chunk split in half →
-  if still failing, **abort build** with chapter/chunk/text in the error.
-  `--allow-gaps` inserts an audible 880 Hz beep marker and continues.
-- Synthesis report at end: `done / cached / retried / failed` counts.
-- `spoken_intro` from manifest used as chapter announcement.
-- Paragraph pauses (`pause_after_ms`) inserted as silence between chunks.
+- `extract_epub(epub_path)` — parses EPUB via stdlib (`zipfile` + `xml.etree`):
+  - `META-INF/container.xml` → OPF path
+  - OPF manifest + spine (ordered list of content items)
+  - EPUB3 NAV or EPUB2 NCX → `{spine_index: title}` map
+  - Per-item HTML → clean text via `_TextExtractor` (skips nav/script/style)
+  - Merges untitled spine items into the preceding titled section
+  - Returns section dicts with `source="spine"`, `confidence=1.0`, body inline
+- Title classification: chapter / frontmatter / backmatter + Project Gutenberg
+  license detection
+- `qa` dict: `spine_items`, `toc_entries`, `sections_produced`
+- No dependency on segment (avoids import cycle); avoids ebooklib (AGPL)
 
-### `tts/base.py` and `tts/kokoro_engine.py`
+### `extract/text.py` (new)
 
-- `TTSEngine.synthesize(text, tone=None)` — tone parameter added.
-- `TTSEngine.supported_tones: tuple` declared (empty for Kokoro).
-- `KokoroEngine.supported_tones = ()` — ignores tone hints; future engines declare theirs.
+- `extract_txt(txt_path)` — plain-text chapter heuristics:
+  - Strips Project Gutenberg header/footer boilerplate
+  - Extracts title/author from Gutenberg metadata block
+  - `_is_heading_line()`: matches `CHAPTER N`, `PART N`, `BOOK N`, roman numeral `I.`
+    patterns; rejects dot-leader TOC entries (`. . .` / `...` filter)
+  - Splits text on heading positions surrounded by blank lines
+  - Falls back to single section (`source="manual"`) when no headings found
+  - Returns section dicts with `source="heuristic"`, `confidence=0.7`, body inline
 
-### `cli.py`
+### `ingest.py` (updated)
 
-- `--allow-gaps` flag added (passes through to `tts_all_chapters`).
+- `detect_format(path)` — `.pdf`/`.epub`/`.txt` → `"pdf"`/`"epub"`/`"txt"`
+- `ingest()` dispatches on format: PDF → `_ingest_pdf()` (existing behavior);
+  EPUB/TXT → lightweight manifest population (hash + format, no page analysis)
+- `manifest.source["format"]` records the input format for downstream dispatch
+- Ingest version bumped to `"ingest-v2"` (includes format in input hash)
 
-### `pyproject.toml`
+### `cli.py` (updated)
 
-- `pysbd>=0.3.4` added to dependencies.
+- `build` and `review` subcommands: argument `pdf` → `input` (accepts all formats)
+- `cmd_build()` dispatches: PDF → `_build_pdf_stages()` (extract + segment);
+  EPUB/TXT → `_build_format_parse()` (single "parse" stage, hash-cached)
+- `needs_review()`: `"spine"` added to trusted sources (EPUB auto-approves
+  when no flags; TXT heuristic always pauses for review)
+- `_build_format_parse()`: calls `extract_epub()` or `extract_txt()`, populates
+  manifest sections, stores bodies inline, stage-caches with `"parse-v1"` hash
 
-## Phase 2 acceptance results (for reference)
+### `segment/chapters.py` (updated)
 
-Regression set, all via `vorpal build … --stop-after segment`:
+- `Section.body: str = ""` — EPUB/TXT bodies stored inline; PDF sections leave
+  it empty (bodies reconstructed from page-block refs)
+- `Section.to_dict()`: only emits `"body"` key when non-empty (avoids bloating
+  PDF manifests)
+- `Section.from_dict()`: reads `body` field with default `""`
+- `section_body(section, pages)`: checks `section.body` first; falls through
+  to page-block lookup for PDFs
 
-- **Firestone scan** → cascade rung **outline**, exactly **11 narrated chapters**
-  (10 + conclusion), `Contents`/front matter/back matter classified & excluded,
-  **zero residual running headers** (was 21 in v0; 227 header lines + 23 page-number
-  lines removed by clustering), 30 `*`-footnotes to the side channel, the flagged
-  dialectic-chart page (idx 127) excluded as a figure. Review edits needed: **2**
-  (typos inherited from the PDF's own outline: "Dialectcs", ch. 5 subtitle) — within
-  the ≤ 2 budget. Auto-approved (trusted source, no flags).
-- **Born-digital with outline** (generated, `tests/test_regression_digital.py`) →
-  rung outline, conf 0.95, zero edits.
-- **Outline-less digital with printed TOC** → rung **toc** (global anchor search —
-  no constant page offset assumed, which spread scans would break), zero edits.
+### `master.py` (updated)
 
-78 tests green (38 before Phase 2). Hash-based resume verified across all stages.
+- **Mastering cache**: `_wav_sha256()`, `_master_cache_hit()`,
+  `_master_cache_write()` — per-chapter `.cache.json` sidecar keyed by
+  `(wav_sha256, target_lufs, aac_bitrate)`. `compile_m4b()` skips loudnorm+encode
+  when the cache hits; writes/updates the sidecar on fresh encodes.
 
-## How segment v2 hangs together
+- **Chapter gate**: `_check_m4b_chapters(m4b_path, expected_count)` — runs
+  ffprobe on the finished M4B; verifies chapter count matches expected; flags
+  chapters shorter than `SHORT_CHAPTER_THRESHOLD_S = 60` s. Result printed to
+  stdout and included in `report.md`.
 
-- `segment/boilerplate.py` — cross-page top/bottom-band clustering (rapidfuzz),
-  line-level removal (headers are often OCR-fused as a body block's first line).
-- `segment/footnotes.py` — `*`/`†` markers always; numeric markers **digital-only**
-  (small-font signal) because scans can't tell `1)` footnotes from numbered body
-  lists; ALL-CAPS and near-letterless blocks rejected (TOC lines, `* * *`).
-- `segment/repair.py` — wordlike-checked de-hyphenation, NFKC + quote classes
-  (mojibake *counted*, never guessed), block reflow + `join_blocks()` cross-page
-  paragraph stitching.
-- `segment/chapters.py` — outline → printed-TOC → font-outlier heuristics cascade
-  with validation gates; every section carries `source`/`confidence`/`flags`.
-  Heuristics on scans intentionally produce nothing (that guessing is what
-  exploded v0); a structureless book becomes one reviewable section.
-- `segment/frontmatter.py` — title-based front/back-matter classification,
-  figure-page detection (`flagged && score < 0.5`), back-matter capping.
-- Boundaries are **(page, block) refs into `pages_segmented.jsonl`** — bodies
-  regenerate from manifest + that artifact every build, so hand-edits to
-  `book.json` chapters take effect without re-segmenting.
-- Review gate: build auto-approves only when every narrated section is from
-  outline/TOC with no flags; otherwise it prints the table and exits until
-  `vorpal review … --approve`.
+- `_write_report_md()`: gains `chapter_gate` parameter; `## Chapter Gate`
+  section in the report.
 
-## Phase 4 acceptance results
+## Phase 5 corpus sweep summary
 
-- **156 tests green** (141 before Phase 4).  15 new tests in `test_master.py`
-  covering: chapter timestamp computation, ffmetadata format, concat-list
-  generation, loudnorm JSON parsing, report.md content, and two full integration
-  tests that run real ffmpeg and verify chapter markers via ffprobe.
+From `docs/06-corpus.md`:
+- **archive.org PDF scans** (2 books): *Call of the Wild* (toc path, 6 ch, ✅),
+  *Meditations of Marcus Aurelius* (heuristic, needs review, ✅ no crash)
+- **Gutenberg EPUBs** (4 books): *Flatland* (auto-approved, 3 ch, ✅),
+  *Sherlock Holmes* (auto-approved, 13 ch, ✅), *P&P* (review-paused, 15 ch
+  — TOC label quirk in this Gutenberg EPUB, ✅ no crash), *Treasure Island*
+  (review-paused, structural EPUB quirk, ✅ no crash)
+- **Gutenberg TXTs** (2 books): *P&P* (61 ch, ≤ 2 edits, ✅), *Treasure Island*
+  (13 sections including PART headers, review-paused, ✅ no crash)
 
-- **Constant-memory assembly verified:** concat-demuxer approach confirmed —
-  per-chapter loudnorm+encode keeps Python RAM at O(1) regardless of book
-  length. The ≈2.9 GB Phase-0 issue (whole-book numpy concatenation) is gone.
+Generalization verdict: every book either builds cleanly or pauses with an
+honest, actionable table. No crashes, no garbage output.
 
-- **Loudness gate verified in integration tests:** two synthetic WAV chapters
-  (−9.4/−9.9 LUFS input) normalized to −18.1 LUFS output, both within ±1 LU.
+## What Phase 4 built (summary — see previous status doc for full details)
 
-- **Chapter marker timestamps verified:** ffprobe confirms ch2 starts at
-  exactly `ch1_duration + silence_ms` (e.g., 2 000 ms + 500 ms = 2 500 ms).
-  The `test_compile_m4b_integration` test asserts this with ±150 ms tolerance
-  for AAC frame-boundary rounding.
+- Per-chapter loudness normalization (two-pass loudnorm), ffmpeg concat-demuxer
+  M4B assembly, chapter markers, cover art, MP3 side product, `report.md`.
+- Constant-memory (65.9 MB peak RSS on Firestone). Full Firestone mastering:
+  11/11 chapters PASS ±1 LU gate.
 
-- **Full Firestone mastering:** ✅ verified on the host — no re-synthesis
-  triggered (straight to `[5/5]`), 11/11 chapters PASS the loudness gate
-  (−25.5 → −18.0 LUFS), 233 MB M4B + `chapters_mp3/` + `report.md` produced.
-  **Peak python RSS: 65.9 MB** (< 1 GB gate) — after fixing two RAM hogs the
-  in-container agent couldn't observe: the chapter-reuse path `sf.read()` the
-  whole WAV as float64 just for a duration (→ `sf.info()`, header-only), and
-  chapter assembly concatenated all chunks in RAM (→ streamed `sf.SoundFile`
-  writes). First honest measurement was 1,279 MB — a real gate failure.
+## What Phase 3 built (summary)
 
-- **Chapter markers in real player:** ✅ verified by the user (2026-06-07) —
-  chapter navigation in VLC lands at chapter starts on the mastered
-  `scratch/firestone_p3.m4b`.
+- `normalize.py`: `spoken_form()`, prosody-aware `normalize_chapter()`,
+  `assert_no_loss()`, `lint_chunks()`. Chunk schema carries `tone: null`.
+- `synth.py`: retry→split→abort policy, chunk cache, `SynthReport`.
+- Full Firestone synth: `done: 1919, failed: 0`.
 
-## What Phase 4 built
+## What to build next (Phase 6)
 
-### `master.py` (full rewrite)
+From [04-roadmap.md](04-roadmap.md) Arc 2:
 
-- **`loudnorm_chapter(wav, out_m4a, title, ffmpeg, ...)`** — two-pass loudnorm:
-  pass 1 measures input LUFS (parse JSON from stderr), pass 2 applies
-  `linear=true` correction + AAC encode. Returns `LoudnessResult`
-  `{chapter_title, input_i, output_i, within_gate}` for the ±1 LU gate and
-  the report.
+1. **`tts/voices.py`** — voice registry with curated entries `{id, display_name,
+   engine, params, description}`; v1: Kokoro single voices + curated blends
+   (Kokoro embeddings are tensors → weighted mix = new voice for free)
+2. **`vorpal voices`** subcommand — list the suite; `--sample [--text "…"]`
+   renders short audition WAVs into `voices_preview/`
+3. **`--voice <id>`** resolves through the registry; manifest stores id + resolved
+   params; chunk-cache key uses resolved params (blend recipe change invalidates)
+4. README gains a "Voices" section with the suite table
 
-- **`compile_m4b(chapter_results, output_stem, ...)`** — constant-memory
-  assembly pipeline:
-  1. Per-chapter loudnorm + AAC encode (one chapter at a time; no whole-book
-     RAM allocation)
-  2. `anullsrc` silence M4A generated once, reused between chapters
-  3. Concat list + `ffmetadata` chapter-marker file written from durations
-  4. `ffmpeg -f concat` → M4B with `-c:a copy` (stream copy, zero re-encode)
-  5. Cover art (page-1 fitz/PyMuPDF render) embedded if PDF path provided
-  6. `chapters_mp3/` side product (libmp3lame 128k)
-  7. `report.md` written from manifest.qa + SynthReport + loudness results
-
-- **`_render_cover(pdf_path, work_dir)`** — renders page 1 of PDF at 72 dpi to
-  JPEG; failures are caught and logged without aborting the build.
-
-- **`_write_report_md(...)`** — pure function; folds manifest.qa (extraction +
-  segment stats, flagged pages), synthesis counts (formerly stdout-only), lint
-  warnings, and per-chapter loudness results into a Markdown report.
-
-### `synth.py` changes
-
-- **`SynthReport` dataclass** — `{done, cached, retried, failed, lint_issues,
-  failed_chunks}` returned alongside chapter_results so compile_m4b can fold
-  synthesis data into report.md without re-parsing stdout.
-
-- **Progress bar double-count fix** — per-chunk cache hits incremented both
-  `report_cached` and `report_done`, making `pct = (done+cached)/total`
-  overshoot 100 %. Fixed: cache hits increment `report_cached` only; `report_done`
-  is reserved for freshly synthesized chunks.
-
-### `binaries.py` changes
-
-- `find_ffprobe()` / `require_ffprobe()` — same resolution pattern as
-  `find_ffmpeg()`, used by integration tests and available for Phase 5 duration
-  sanity gates.
-
-### `cli.py` changes
-
-- Unpacks `(chapter_results, synth_report)` from `tts_all_chapters`.
-- Reads mastering settings from `manifest.settings` (`target_lufs`,
-  `inter_chapter_silence_ms`, `aac_bitrate`) with sensible defaults.
-- Passes `pdf_path`, `work_dir`, `synth_report`, `manifest_qa` through to
-  `compile_m4b`.
-- Catches `MissingBinaryError` from compile_m4b and exits with a clear message.
-
-## Phase 5 — what to build next
-
-From [04-roadmap.md](04-roadmap.md):
-
-1. **Corpus sweep** — pull diverse public-domain PDFs (Internet Archive scans,
-   Gutenberg born-digital); run segment + end-to-end on each; minimize any
-   breakage into a unit test.
-2. **Duration-sanity and marker-count package gates** — verify M4B chapter
-   count matches expected; alert on suspiciously short chapters.
-3. **`--allow-gaps` escape hatch with audible markers** — already works in
-   synth; ensure it propagates through mastering (gapped chapters get a beep
-   marker in the final M4B, not silent gaps).
-4. **README rewrite** — install (Tesseract/ffmpeg), quickstart, review workflow,
-   manifest reference. Tag `v1.0`.
-
-Notes from Phase 4 for Phase 5 entry:
-
-- The `normalized/` subdirectory in the workdir holds per-chapter M4As from
-  mastering. A `--redo-master` flag (Phase 5) should delete it to force
-  re-normalization without touching the chunk cache.
-- `manifest.settings` keys `target_lufs`, `inter_chapter_silence_ms`,
-  `aac_bitrate` are read with defaults in cli.py; populate them explicitly if
-  the user passes `--target-lufs` etc. (flag not yet added).
-- The `report.md` is written to `{output_stem}_report.md` (workdir-adjacent).
-  Phase 5 should add it as a stage artifact in the manifest so staleness
-  tracking covers the report.
+Accept when: ≥ 6 curated voices including ≥ 2 blends; full build runs with a
+blend voice; changing blend weights re-synthesizes; **(human)** audition pass
+picks favorites.
 
 ## Environment facts you will want to remember
 
@@ -283,25 +206,22 @@ the notes below are the Windows dev-box specifics.)
   on PATH; `binaries.py` finds them; env overrides `VORPAL_TESSERACT`/`VORPAL_FFMPEG`).
 - The console is **cp932** — `cli.py` reconfigures stdout to UTF-8; scratch scripts
   need `$env:PYTHONIOENCODING='utf-8'`.
-- `scratch/` is gitignored experiment space. Useful artifacts now:
-  `firestone_p3_workdir/` (full extraction + segment v2 + Phase 3 synth output),
-  `outline.pdf` / `no_outline.pdf` (regenerable: `scratch\make_regression_books.py`).
+- `scratch/` is gitignored experiment space.
 - The v0 script is preserved at `miscellaneous/pipeline_v0_reference.py`.
 - The Firestone scan is **two-page spreads** (one PDF page = two printed pages,
-  landscape ~593×510). Anything page-geometry-related must think per *column*;
-  chapter boundaries are block-level for this reason.
+  landscape ~593×510). Anything page-geometry-related must think per *column*.
 
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 156 passed
-venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p4 --stop-after segment
-                                     # everything "fresh", 11-chapter table
-venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p4
-                                     # full build — synthesis reuses firestone_p3_workdir/ cache
-                                     # mastering runs fresh; verify:
-                                     #   report.md shows all 11 chapters PASS loudness gate
-                                     #   M4B file exists, RSS stayed < 1 GB
+python -m pytest -q                  # should be 205 passed
+vorpal build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf \
+    --output scratch\firestone_p5 --stop-after segment
+                                     # everything fresh, 11-chapter table
+vorpal build corpus\flatland_pg201.epub --output scratch\flatland_test --stop-after segment
+                                     # EPUB path: 3 chapters, auto-approved
+vorpal build corpus\pride_and_prejudice_pg1342.txt --output scratch\pp_txt_test --stop-after segment
+                                     # TXT path: 61 chapters, review pause (expected)
 ```
 
-Then start Phase 5: corpus sweep + duration/marker-count gates + README.
+Then start Phase 6: voice registry, blends, `vorpal voices` audition command.

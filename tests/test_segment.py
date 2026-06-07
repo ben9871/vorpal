@@ -64,3 +64,30 @@ def test_segment_result_round_trips_through_manifest_dicts():
             for s in restored] == \
            [(s.id, s.title, s.kind, s.include, s.start, s.end)
             for s in result.sections]
+
+
+def test_section_body_stored_inline():
+    """Sections with body stored inline (EPUB/TXT path) round-trip correctly."""
+    s = Section(
+        id=1, title="Chapter One", kind="chapter", include=True,
+        start=(0, 0), end=(0, 0), source="spine", confidence=1.0,
+        body="This is the stored body text for an EPUB section.",
+    )
+    d = s.to_dict()
+    assert d["body"] == "This is the stored body text for an EPUB section."
+    restored = Section.from_dict(d)
+    assert restored.body == s.body
+
+    # section_body() returns stored body, not page-lookup
+    from vorpal.segment.chapters import section_body
+    assert section_body(restored, []) == s.body
+
+
+def test_section_body_empty_not_stored():
+    """PDF sections (no inline body) don't emit a 'body' key in the dict."""
+    s = Section(
+        id=1, title="Chapter One", kind="chapter", include=True,
+        start=(0, 0), end=(0, 0), source="outline", confidence=0.9,
+    )
+    d = s.to_dict()
+    assert "body" not in d
