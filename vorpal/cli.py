@@ -82,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Tone-tagging backend: 'cli' (default) uses `claude -p` "
                             "on your Claude subscription; 'api' uses the pay-as-you-go "
                             "SDK with VORPAL_ANTHROPIC_KEY (unlocks Batches discount)")
+    build.add_argument("--tone-model", choices=["haiku", "sonnet"], default="haiku",
+                       help="Model for tone tagging (default: haiku — the cheap "
+                            "classification workhorse; sonnet to compare tag quality "
+                            "in the effectiveness eval). Never Opus — tagging is a "
+                            "weak-model task on either backend.")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -259,8 +264,9 @@ def cmd_build(args) -> None:
 
     # ── Optional: tone tagging (--expressive) ────────────
     if getattr(args, "expressive", False):
-        from .tone import tag_chapter, tone_histogram, TONE_VOCAB
+        from .tone import tag_chapter, tone_histogram, TONE_VOCAB, resolve_tone_model
         tone_cache = work_dir / "tone_cache"
+        tone_model = resolve_tone_model(getattr(args, "tone_model", "haiku"))
         print(f"\n[3.5/5] Tone tagging ({len([c for c in chapters if not c['skip']])} chapters)...")
         chapter_tones = []
         tag_ok = True
@@ -270,6 +276,7 @@ def cmd_build(args) -> None:
                 continue
             try:
                 result = tag_chapter(ch["body"], ch["title"], tone_cache,
+                                     model=tone_model,
                                      backend=getattr(args, "tone_backend", "cli"))
                 tones = result.get("tones", [])
                 ch["paragraph_tones"] = tones

@@ -259,6 +259,32 @@ def test_backend_in_cache_key(tmp_path):
         _chapter_cache_key(body, "claude-haiku-4-5", "api")
 
 
+def test_resolve_tone_model():
+    """Friendly names map to canonical ids; Opus is not offered."""
+    from vorpal.tone import resolve_tone_model, TONE_MODELS
+    assert resolve_tone_model("haiku") == "claude-haiku-4-5"
+    assert resolve_tone_model("sonnet") == "claude-sonnet-4-6"
+    assert "opus" not in TONE_MODELS
+    # a full id passes through unchanged
+    assert resolve_tone_model("claude-haiku-4-5") == "claude-haiku-4-5"
+
+
+def test_sonnet_model_maps_to_cli_alias(tmp_path, monkeypatch):
+    """--tone-model sonnet reaches `claude -p --model sonnet`."""
+    monkeypatch.setattr("vorpal.tone.shutil.which", lambda _: "/usr/bin/claude")
+    seen = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = '[{"idx":0,"tone":"neutral","confidence":0.9}]'
+        stderr = ""
+
+    monkeypatch.setattr("vorpal.tone.subprocess.run",
+                        lambda cmd, **kw: (seen.update(cmd=cmd) or _Proc()))
+    tag_chapter("One para.", "Ch", tmp_path / "c", model="claude-sonnet-4-6")
+    assert seen["cmd"][3] == "sonnet"
+
+
 def test_tag_chapter_empty_body(tmp_path):
     """tag_chapter returns empty result for empty body without calling the API."""
     result = tag_chapter("", "Empty Chapter", tmp_path / "cache")

@@ -159,6 +159,18 @@ _CLI_MODEL_ALIAS = {
     "claude-opus-4-8": "opus",
 }
 
+# Friendly --tone-model names → canonical IDs. Tagging is a weak-model task;
+# Opus is intentionally not offered.
+TONE_MODELS = {
+    "haiku": "claude-haiku-4-5",
+    "sonnet": "claude-sonnet-4-6",
+}
+
+
+def resolve_tone_model(name: str) -> str:
+    """'haiku'/'sonnet' (or a full canonical id) → canonical model id."""
+    return TONE_MODELS.get(name, name)
+
 
 def _tag_paragraphs_api(paragraphs: list, chapter_title: str, model: str, client) -> list:
     """Direct Anthropic SDK (pay-as-you-go). Returns {idx, tone, confidence} entries."""

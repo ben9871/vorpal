@@ -126,12 +126,19 @@ Two backends ship in `tone.py`, selected by `--tone-backend`:
   API ledger was empty while the subscription had room — don't pay twice for
   the same capability. Works on host and in vorpal-box (CLI present in both).
   Trade-offs: slower per call, no Batches discount, and it spends against the
-  same allowance as agent runs.
+  same allowance as agent runs. **The model is passed explicitly** (`--model
+  haiku`) so the subscription path uses the *same weak classifier the `api`
+  production path uses* — never the subscription's heavy default model.
 - **Opt-in `api`: official `anthropic` SDK, model `claude-haiku-4-5`** — the
   Haiku-shaped task done pay-as-you-go with `VORPAL_ANTHROPIC_KEY`. Choose
   this to bill tagging to the API console instead of the subscription, or to
-  use the **Batches API** (50 % off). Escalate to `claude-sonnet-4-6` only if
-  Haiku's tags fail the effectiveness eval (§2d).
+  use the **Batches API** (50 % off).
+- **Model: `--tone-model {haiku,sonnet}`, default haiku** on either backend —
+  tagging is a weak-model task, so Opus is intentionally not offered. Use
+  `--tone-model sonnet` to compare tag quality in the effectiveness eval (§2d);
+  the canonical deployment model is whichever wins that comparison. Model is
+  part of the cache key, so haiku- and sonnet-tagged runs of the same book
+  coexist without clobbering each other.
 - **Cost reality** (Firestone-sized, ~150–200k input tokens, tiny outputs):
   `api` Haiku ≈ $0.20/book (≈ $0.10 batched), Sonnet ≈ $0.60; `cli` is "free"
   in cash (subscription) but consumes allowance. Either way the tagging cache
