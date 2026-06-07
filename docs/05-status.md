@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 13 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 14 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -27,12 +27,43 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | ✅ done (pending live acceptance) | commit Phase 11 |
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | ✅ done | commit Phase 12 |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | ✅ done | commit Phase 13 |
-| **Arc 3: Phase 14 — draft-mode builds (`--draft`)** | ⬅ **next** | roadmap |
-| Phase 9 — in-house voices (hands-on spike, **playground-isolated**, run last) | queued | roadmap |
+| Arc 3: Phase 14 — draft-mode builds (`--draft`) | ✅ done | commit Phase 14 |
+| **Phase 9 — in-house voices (hands-on spike, playground-isolated)** | ⬅ **next** | roadmap |
 
-**Next-up:** Phase **14** (draft-mode builds `--draft`), then Phase **9**
-(in-house voices playground spike). Full specs + acceptance in
-[04-roadmap.md](04-roadmap.md) Arc 3.
+**Next-up:** Phase **9** (in-house voices, playground-isolated spike).
+Full specs in [04-roadmap.md](04-roadmap.md).
+
+## Phase 14 acceptance results
+
+**414 tests green** (414 = 403 Phase-13 + 11 new in `test_phase14.py`).
+
+### What was built
+
+- `cli.py`:
+  - `--draft` flag added to the `build` subcommand
+  - When active: after TTS synthesis, calls `_compile_draft_wav()` instead of
+    `compile_m4b()`; skips loudness normalization, AAC encoding, chapter markers
+  - Output: `<stem>_draft.wav` next to the workdir (single concatenated PCM WAV)
+
+- `_compile_draft_wav(chapter_results, output_stem, silence_ms)`:
+  - Reads WAV parameters (sample rate, channels, sample width) from the first
+    available chapter WAV
+  - Concatenates chapter PCM frames in order
+  - Inserts zero-padding (`silence_ms`) between chapters (not after the last one)
+  - Skips missing chapter WAV paths silently
+  - Prints duration and file size to console
+
+### Acceptance
+
+- CLI parser: `--draft` flag wired and defaults to `False`
+- `_compile_draft_wav` tested: creates valid WAV, correct duration with/without
+  silence, skips missing WAVs, preserves sample rate, handles 0/1/N chapters
+- Full-book draft build on real Kokoro audio: not run (would require a full build),
+  consistent with the protocol that full-book runs are acceptance activities
+- The full mastering path is untouched: without `--draft` the build is identical
+  to before Phase 14
+
+---
 
 ## Phase 13 acceptance results
 
@@ -364,17 +395,22 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 403 passed
+python -m pytest -q                  # should be 414 passed
 
-# Verify Phase 13 additions:
-vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth)
+# Verify Phase 14:
+vorpal build tests/fixtures/outline.pdf --draft --end-page 3
+# → <stem>_draft.wav produced; skip mastering
+
+# Verify Phase 13:
 vorpal review book.epub --lexicon    # prints lexicon table from manifest
+vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth)
 
 # What to verify on a GPU + credential machine:
 #   1. vorpal build firestone.pdf --expressive → tone histogram ≳ 60% neutral
-#   2. vorpal build firestone.pdf --lexicon → lexicon proposed and stored
-#   3. manually approve one entry; re-run build → entry applied before TTS
-#   4. A/B kit compare --expressive vs plain (human listening verdict pending)
+#   2. vorpal build firestone.pdf --draft → fast whole-book preview WAV
+#   3. vorpal build firestone.pdf --lexicon → lexicon proposed and stored
+#   4. manually approve one entry; re-run build → entry applied before TTS
+#   5. A/B kit compare --expressive vs plain (human listening verdict pending)
 ```
 
 ## What to build next

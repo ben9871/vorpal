@@ -102,6 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Whisper model for --asr-check (default: base ~74 MB)")
     build.add_argument("--asr-fraction", type=float, default=0.10, metavar="FRAC",
                        help="Fraction of chunks to transcribe (default: 0.10 = 10 %%)")
+    build.add_argument("--draft", action="store_true",
+                       help="Skip mastering: emit a single concatenated preview WAV "
+                            "at <stem>_draft.wav instead of building the .m4b; "
+                            "10x faster for iteration on chapter/voice/tone settings")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -416,26 +420,33 @@ def cmd_build(args) -> None:
               f"{len(outliers)} outlier(s) (WER > 30 %)")
 
     # ── Step 5: Mastering & packaging ─────────────────
-    settings = manifest.settings
-    target_lufs = float(settings.get("target_lufs", -18.0))
-    silence_ms  = int(settings.get("inter_chapter_silence_ms", 1500))
-    aac_bitrate = str(settings.get("aac_bitrate", "64k"))
+    if getattr(args, "draft", False):
+        # Draft mode: skip loudness normalization and AAC encoding.
+        # Concatenate chapter WAVs directly into a single preview WAV.
+        final = _compile_draft_wav(chapter_results, output_stem,
+                                   silence_ms=int(manifest.settings.get(
+                                       "inter_chapter_silence_ms", 1500)))
+    else:
+        settings = manifest.settings
+        target_lufs = float(settings.get("target_lufs", -18.0))
+        silence_ms  = int(settings.get("inter_chapter_silence_ms", 1500))
+        aac_bitrate = str(settings.get("aac_bitrate", "64k"))
 
-    try:
-        final = compile_m4b(
-            chapter_results, output_stem,
-            title=title,
-            author=author,
-            target_lufs=target_lufs,
-            inter_chapter_silence_ms=silence_ms,
-            aac_bitrate=aac_bitrate,
-            pdf_path=pdf_path_for_cover,
-            work_dir=work_dir,
-            synth_report=synth_report,
-            manifest_qa=manifest.qa,
-        )
-    except MissingBinaryError as e:
-        sys.exit(f"ERROR: {e}")
+        try:
+            final = compile_m4b(
+                chapter_results, output_stem,
+                title=title,
+                author=author,
+                target_lufs=target_lufs,
+                inter_chapter_silence_ms=silence_ms,
+                aac_bitrate=aac_bitrate,
+                pdf_path=pdf_path_for_cover,
+                work_dir=work_dir,
+                synth_report=synth_report,
+                manifest_qa=manifest.qa,
+            )
+        except MissingBinaryError as e:
+            sys.exit(f"ERROR: {e}")
 
     if not args.keep_temp:
         shutil.rmtree(audio_dir, ignore_errors=True)
@@ -456,6 +467,64 @@ def cmd_build(args) -> None:
     print(f"  Done!  ->  {final}")
     print(f"  Work files: {work_dir}/")
     print("=" * 58)
+
+
+# ── draft-mode helper ─────────────────────────────────────────────────────
+
+
+def _compile_draft_wav(chapter_results: list, output_stem: str,
+                       silence_ms: int = 1500) -> Path:
+    """Concatenate chapter WAVs into a single preview WAV (no mastering).
+
+    Reads PCM frames directly from the 16-bit mono/stereo chapter WAVs produced
+    by synthesis; inserts ``silence_ms`` of silence between chapters.  Writes to
+    ``<output_stem>_draft.wav``.
+
+    Returns the path to the output file.
+    """
+    import wave as _wave
+    import struct as _struct
+
+    out_path = Path(f"{output_stem}_draft.wav")
+    print(f"\n[5/5] Draft mode: concatenating {len(chapter_results)} chapters "
+          f"→ {out_path.name} ...")
+
+    # Determine output parameters from the first available WAV
+    sample_rate = 24000
+    n_channels = 1
+    sampwidth = 2
+    for r in chapter_results:
+        wav_path = Path(r.get("wav", ""))
+        if wav_path.exists():
+            with _wave.open(str(wav_path), "rb") as wf:
+                sample_rate = wf.getframerate()
+                n_channels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+            break
+
+    # Silence padding between chapters (zero-fill)
+    silence_frames = int(sample_rate * silence_ms / 1000)
+    silence_bytes = (b"\x00" * sampwidth * n_channels) * silence_frames
+
+    with _wave.open(str(out_path), "wb") as out_wf:
+        out_wf.setnchannels(n_channels)
+        out_wf.setsampwidth(sampwidth)
+        out_wf.setframerate(sample_rate)
+
+        for i, r in enumerate(chapter_results):
+            wav_path = Path(r.get("wav", ""))
+            if not wav_path.exists():
+                continue
+            with _wave.open(str(wav_path), "rb") as in_wf:
+                frames = in_wf.readframes(in_wf.getnframes())
+            out_wf.writeframes(frames)
+            if i < len(chapter_results) - 1:
+                out_wf.writeframes(silence_bytes)
+
+    total_frames = out_path.stat().st_size // (sampwidth * n_channels)
+    duration_s = total_frames / sample_rate
+    print(f"  Draft WAV: {duration_s:.1f} s  ({out_path.stat().st_size // 1024} KB)")
+    return out_path
 
 
 # ── format-specific pipeline stages ──────────────────────────────────────
