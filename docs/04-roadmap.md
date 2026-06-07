@@ -167,6 +167,13 @@ manual-tone chapter measurably differs from its neutral build (f0/energy/rate
 delta — the acoustic check from ideation §2d); pulling the network mid-build
 aborts loudly with a resumable cache.
 
+*Credential gate:* no TTS-provider key (OpenAI/Azure) is provisioned yet.
+Without one: implement the adapter, cost machinery, and failure mapping
+against a **mock engine with recorded-response tests**; mark every live
+acceptance item **(blocked: needs TTS provider key)** in the status doc —
+never simulate a pass. The phase is "done (pending live acceptance)" in that
+state. Do not block Phase 8 on this — see its no-key path.
+
 ## Phase 8 — Tone tagging & the effectiveness verdict *(`--expressive`)*
 
 - `tone.py` — LLM tags **paragraphs** against the ≤ 8-tag vocabulary
@@ -188,6 +195,12 @@ aborts loudly with a resumable cache.
 fraction lands in a sane band (≳ 60 %); the acoustic-delta gate passes for
 every tag the engine claims to support; **(human)** the A/B kit verdict —
 the feature stays opt-in unless the tagged build wins.
+
+*No-key path:* the tagging pass needs only `VORPAL_ANTHROPIC_KEY` (already
+provisioned — CLAUDE.md §Credentials). For realization, use the **Kokoro
+approximation layer** (speed/pause/blend shifts) as the tone-capable engine —
+run the acoustic-delta gate and produce the A/B kit against it. Re-run the
+gates against a real API engine when Phase 7's credential arrives.
 
 ## Phase 9 — In-house voices *(design + spike only, gated on 6–8)*
 
