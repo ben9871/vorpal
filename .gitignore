@@ -1,0 +1,22 @@
+# Environments / IDE
+.venv/
+venv311/
+venv/
+__pycache__/
+*.egg-info/
+.idea/
+.pytest_cache/
+
+# Build & run artifacts
+scratch/
+*_workdir/
+*.m4b
+
+# Large media and model binaries (miscellaneous one-off projects)
+*.onnx
+voices-v*.bin
+*.mp4
+*.wav
+*.mp3
+*.jpg
+*.png

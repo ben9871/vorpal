@@ -1,0 +1,5 @@
+# Convenience installer — package deps are defined in pyproject.toml.
+# CPU torch wheel by default; for the NVIDIA GPU, install torch from the CUDA
+# index first (https://pytorch.org/get-started/locally/), then run this.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-e .[dev]

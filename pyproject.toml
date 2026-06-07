@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audiobooker"
+version = "0.1.0"
+description = "Convert book PDFs into navigable .m4b audiobooks with TTS voice models"
+# <3.13 because kokoro>=0.8 (and its misaki g2p stack) caps at Python 3.12
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "pymupdf>=1.24",
+    "pytesseract>=0.3.10",
+    "pillow>=10.0",
+    "numpy>=1.26",
+    "soundfile>=0.12",
+    "kokoro>=0.9",
+    "torch>=2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+audiobook = "audiobooker.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["audiobooker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
