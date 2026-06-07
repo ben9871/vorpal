@@ -15,7 +15,15 @@ acceptance criteria) → `05-status.md` (now).
   Tesseract at `C:\Program Files\Tesseract-OCR\`, ffmpeg at `C:\ffmpeg\bin\`
   (found by `vorpal/binaries.py`). Console is cp932 — set
   `$env:PYTHONIOENCODING='utf-8'` for ad-hoc scripts.
-- **Linux / Docker:** `apt-get install -y tesseract-ocr ffmpeg`, then
+- **vorpal-box container (the usual autonomous setup):** if you are running
+  inside the project container (launched via `docker/run.ps1`), everything is
+  already provisioned — repo at `/workspace`, venv on PATH (`python`,
+  `pytest`, `vorpal` resolve), tesseract/ffmpeg/espeak-ng installed, editable
+  install done by the entrypoint. Just start working. You cannot `apt-get`
+  (non-root, no sudo) — if a system package is missing, add it to
+  `docker/Dockerfile` and note that the host must rebuild with
+  `docker\run.ps1 -Rebuild`.
+- **Other Linux:** `apt-get install -y tesseract-ocr ffmpeg espeak-ng`, then
   `python3.11 -m venv venv && pip install -r requirements.txt` (installs CPU
   torch + `-e .[dev]`). Python must be 3.10–3.12. `binaries.py` finds both
   tools on PATH; override with `VORPAL_TESSERACT`/`VORPAL_FFMPEG` if needed.
