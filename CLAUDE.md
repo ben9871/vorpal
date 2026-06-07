@@ -109,6 +109,35 @@ additional real-world PDFs to test against:
   test or a small generated fixture (like `tests/test_regression_digital.py`
   does) rather than committing the PDF.
 
+## Unsupervised-run protocol (long autonomous sessions)
+
+When running a multi-phase session with no human watching (the usual
+vorpal-box case), these are hard rules, not suggestions:
+
+- **Commit per phase, always.** One `Phase N: …` commit with acceptance
+  evidence in the body, before starting the next phase. Each phase must be
+  independently revertible (`git revert <sha>`). Never batch two phases into
+  one commit. Never leave the tree dirty between phases.
+- **Update `docs/05-status.md` every phase** — state table, acceptance results,
+  and an honest list of `(human)` / `(blocked)` items. This is the morning
+  review surface; if it's stale, the run is unreviewable.
+- **Do NOT, while unsupervised:** spend money (no pay-as-you-go API calls — the
+  `cli` tone backend on the subscription is fine; the `api` backend is not);
+  download model weights or datasets > 100 MB *unless the current phase
+  explicitly names that download* (Whisper `base` in Phase 12, etc.); push to
+  any remote / open PRs; delete or overwrite anything you didn't create this
+  session; accept a license or make a legal/financial commitment on the
+  operator's behalf; run a single job expected to exceed ~1 hour without it
+  being the phase's stated deliverable.
+- **Never simulate acceptance.** If a step needs a credential, a download, or a
+  human you don't have, mark it `(blocked: …)` or `(human)` in the status doc
+  and move on — a faked green is worse than an honest blocked.
+- **If you run out of specified work:** do not invent risky tasks. Write a
+  concrete proposal for the next phase into the roadmap, update the status doc,
+  and stop cleanly. A clean stop with a good handoff is a successful run.
+- **Phase 9 (in-house voices) is proposal-only** — see its roadmap entry. No
+  training, no downloads, no spend under any circumstances while unsupervised.
+
 ## Working conventions
 
 - **One phase at a time**, in roadmap order; a phase is done only when its

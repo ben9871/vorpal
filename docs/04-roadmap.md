@@ -228,17 +228,115 @@ approximation layer** (speed/pause/blend shifts) as the tone-capable engine —
 run the acoustic-delta gate and produce the A/B kit against it. Re-run the
 gates against a real API engine when Phase 7's credential arrives.
 
-## Phase 9 — In-house voices *(design + spike only, gated on 6–8)*
+# Arc 3 — Hardening, QA & reachable post-v1 *(designed for unsupervised runs)*
 
-Custom-training our own suite voices (the own-it-forever path to the
-character narrator). Deliberately **not specified yet** beyond guardrails:
+*(Added 2026-06-07. Arc 2 (Phases 5–8) shipped fast; this arc is a curated
+day's worth of **safe, bounded, reversible** work to run while the operator is
+away. Execution order is numeric: **10 → 11 → 12 → 13 → 14**, then Phase 9
+(research, proposal-only) last. Every phase: independently committable, one
+`Phase N: …` commit with evidence, status-doc update, suite green. Obey the
+Unsupervised-run protocol in CLAUDE.md — no money spent, no >100 MB downloads
+except where a phase names them, no remote pushes, no irreversible ops; if
+blocked or out of work, write a proposal and stop cleanly — never invent risky
+work or simulate acceptance.)*
 
-- Spike first: dataset licensing diligence (only properly licensed voice
-  data), candidate base models (StyleTTS2 / Orpheus / Kokoro fine-tune), one
-  proof-of-concept voice evaluated against the suite's quality bar.
-- Ships, if ever, as a registry entry like any other — users see a name and
-  a sample, never the training story.
-- Full phase plan gets written into this doc only after the spike reports.
+## Phase 10 — Arc 2 hardening & self-review *(do first — pure quality, no deps)*
+
+Arc 2 was built fast; this phase is the adversarial second pass.
+
+- Review the Phase 5–8 modules (`extract/epub.py`, `extract/text.py`,
+  `tts/voices.py`, `tts/api_engine.py`, `tts/kokoro_approx.py`, `tone.py`,
+  `master.py` cache) for the bug classes a fast build leaves: encoding
+  (the cp932 `read_text` class), unclosed file/subprocess handles, cache-key
+  correctness, empty/degenerate inputs, malformed EPUB/TXT, error paths that
+  swallow failures. Fix with a test per bug.
+- Re-run the full corpus through `--stop-after segment`; confirm no regressions
+  vs the recorded `06-corpus.md` results.
+- No behavior change to already-passing paths; net new tests only.
+
+**Accept when:** review notes (what was checked, what was found) in the status
+doc; each fix has a regression test; suite green; corpus results unchanged or
+improved.
+
+## Phase 11 — Tone effectiveness materials *(the eval, minus the human verdict)*
+
+Phase 8 built the tagger and gates; this runs them for real and produces the
+evidence the human A/B verdict needs. The `cli` tone backend runs on the
+subscription — **no API spend**.
+
+- Live-tag Firestone + 2 corpus books (`--expressive`, default `cli`/haiku);
+  emit per-book tone histograms; assert neutral fraction ≳ 60 %.
+- **Acoustic-delta gate**: synthesize a fixed sample passage under each
+  non-neutral tone via the Kokoro approximation engine; measure f0
+  mean/variance, energy, speaking rate; assert non-neutral tones are
+  statistically distinct from neutral. Add `librosa` (or scipy-only) under a
+  `[audio]` extra — expected dependency for this phase.
+- **A/B kit**: write paired ~1-minute clips (tagged vs all-neutral) to
+  `ab_kit/` with a manifest, for the operator's blind listening verdict.
+- Also re-run with `--tone-model sonnet` on one book so haiku-vs-sonnet tag
+  quality can be compared.
+
+**Accept when:** histograms + acoustic-delta numbers (pass/fail per tone) in
+the status doc and a report; A/B kit on disk; **(human, pending)** the blind
+verdict — the feature stays `--expressive` opt-in until it wins.
+
+## Phase 12 — ASR round-trip QA *(catch TTS derailment automatically)*
+
+- `qa/asr.py`: transcribe a sampled fraction of synthesized chunks with a
+  small local Whisper (`base` or smaller — names a model download, expected),
+  compare to the chunk's source text, compute word-error rate, flag outliers.
+  Catches mispronunciation / dropped-word / derailment classes nothing else
+  catches. Off by default (`--asr-check`); GPU-accelerated when present.
+- Unit-test the WER + sampling logic on synthetic transcript pairs (no model
+  needed in tests).
+
+**Accept when:** on a Firestone chapter, per-sampled-chunk WER computed,
+outliers listed in `report.md`; unit suite green; default build path unchanged.
+
+## Phase 13 — Pronunciation lexicon *(per-book name/term overrides)*
+
+- `lexicon.py`: an optional LLM pass (tone-backend infra — `cli`/subscription
+  by default) proposes pronunciations for the book's proper nouns; stored in
+  the manifest; surfaced in `vorpal review --lexicon` for approval/edit;
+  `normalize` applies approved entries (misaki custom-pronunciation hooks).
+- Deterministic core untouched: no lexicon ⇒ byte-identical output.
+
+**Accept when:** a lexicon is proposed for Firestone's proper nouns, stored,
+editable in review, and applied in normalization (round-trips); table-driven
+tests on application logic; build without `--lexicon` is unchanged.
+
+## Phase 14 — Draft-mode builds *(`--draft`: fast whole-book iteration)*
+
+- `--draft`: skip mastering (no loudnorm/M4B), emit a single concatenated
+  preview WAV/MP3; optionally a faster synth config. For checking chapter
+  detection + narration flow across a whole book before committing the full
+  GPU/mastering spend.
+
+**Accept when:** `--draft` produces a listenable whole-book preview markedly
+faster than a full build; documented in README; full build path unchanged.
+
+---
+
+## Phase 9 — In-house voices *(research spike — PROPOSAL ONLY, run last)*
+
+The own-it-forever path to a character narrator. **This phase produces a
+written proposal for human review — it does NOT execute.** Under no
+circumstances, running unsupervised, may the agent: download model weights or
+datasets, start a training run, spend money, or accept a license on the
+operator's behalf. Those are explicit human decisions gated on this report.
+
+- Output `docs/08-voice-training-spike.md`: dataset licensing landscape (which
+  voice datasets are actually licensable, and how), candidate base models
+  (StyleTTS2 / Orpheus / Kokoro fine-tune) with concrete training-cost / time /
+  quality / legal trade-offs, a minimal proof-of-concept *plan* (data, steps,
+  GPU hours, $ estimate), and a clear **go / no-go recommendation** with a
+  proposed Phase-15 execution plan.
+- Ships, if ever approved, as a registry entry like any other — users see a
+  name and a sample, never the training story.
+
+**Accept when:** the spike doc exists, is concrete (names specific datasets,
+licenses, models, numbers), and ends with a go/no-go + proposed Phase-15 plan.
+No code, no downloads, no spend.
 
 ---
 
@@ -251,24 +349,22 @@ character narrator). Deliberately **not specified yet** beyond guardrails:
   web UI (or TUI) over the manifest, then perhaps a PyInstaller exe. Nothing
   in the architecture blocks this; nothing in it is being built now.
 
-## Post-Arc-2 candidates (explicitly deferred)
+## Post-Arc-3 candidates (explicitly deferred)
 
-In rough value order (expressive narration graduated into Phases 6–9 above):
+In rough value order (most of the old post-Arc-2 list graduated into Arc 3):
 
-1. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
-2. **Performance** — parallel page OCR (process pool), batched TTS on GPU
+1. **Performance** — parallel page OCR (process pool), batched TTS on GPU
    (matters more once API engines bill per request).
-3. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
-   front-matter classification on weird books (deterministic core,
-   model-assisted edges).
-4. **Pronunciation lexicon** (per-book overrides for names/terms; LLM proposes
-   from the book's proper nouns, user approves in review).
-5. **Draft-mode builds** (`--draft`: fast engine, no mastering) for whole-book
-   iteration before committing GPU/API spend.
+2. **LLM-assisted OCR repair** — optional scalpel pass over OCR-damaged
+   passages, with the surrounding clean text as context; diff-shown,
+   review-approved (deterministic core, model-assisted edges).
+3. **Library / batch mode** — point at a directory, build a shelf overnight;
+   queue + progress over the existing content-addressed cache.
+4. **Manifest as a first-class artifact** — other renderers (clean EPUB, study
+   guide) from the same cleaned `book.json`.
 
-*(EPUB/TXT input graduated into Phase 5 on 2026-06-07 — structure ships
-intact in those formats, making them the cheap path, and they unlock the
-Gutenberg catalog as both corpus and product input. DOCX/web stay out.)*
+*(EPUB/TXT input graduated into Phase 5; ASR QA, pronunciation lexicon, and
+draft-mode graduated into Arc 3, all on 2026-06-07. DOCX/web stay out.)*
 
 ## Risks & mitigations
 

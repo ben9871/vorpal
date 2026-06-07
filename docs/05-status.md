@@ -22,8 +22,21 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 5 — multi-format input & end-to-end hardening | ✅ done | commit `1c460a8` |
 | Phase 6 — voice suite v1 (registry, blends, audition) | ✅ done | commit `a06372f` |
 | Phase 7 — first tone-capable engine (credential gate) | ✅ done (pending live acceptance) | commit `5def893` |
-| **Arc 2: Phase 8 — tone tagging + effectiveness gates (`--expressive`)** | ✅ done (pending live + human acceptance) | this commit |
-| Arc 2: Phase 9 — in-house voices (spike-gated) | queued | roadmap |
+| Phase 8 — tone tagging + effectiveness gates (`--expressive`) | ✅ done (pending live + human acceptance) | commit `0aa56d8` |
+| **Arc 3: Phase 10 — Arc 2 hardening & self-review** | ⬅ **next** | roadmap |
+| Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | queued | roadmap |
+| Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
+| Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
+| Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
+| Phase 9 — in-house voices (research spike, **proposal-only**, run last) | queued | roadmap |
+
+**Next-up (unsupervised day, execution order):** Phase **10 → 11 → 12 → 13 →
+14**, then Phase **9** (proposal-only research) last. Full specs +
+acceptance in [04-roadmap.md](04-roadmap.md) Arc 3. Obey the **Unsupervised-run
+protocol** in [`CLAUDE.md`](../CLAUDE.md): commit + status-update per phase, no
+spend / no big downloads / no remote pushes / no irreversible ops, mark blocked
+honestly, and if you run out of work write a proposal and stop cleanly. The
+`cli` tone backend (subscription) means Phase 11 needs **no API money**.
 
 ## Phase 8 acceptance results
 
