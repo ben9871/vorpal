@@ -25,7 +25,9 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .extract import ocr_images, pdf_to_images
+from .extract import extract_pages, pages_to_flat_text, read_pages_jsonl, write_pages_jsonl
+from .ingest import ingest
+from .manifest import Manifest, hash_parts
 from .master import compile_m4b
 from .segment import clean_raw_text, split_into_chapters
 from .synth import tts_all_chapters
@@ -57,8 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--start-page", type=int, default=0)
     build.add_argument("--end-page",   type=int, default=None)
     build.add_argument("--keep-temp",  action="store_true")
-    build.add_argument("--redo-images", action="store_true")
-    build.add_argument("--redo-ocr",    action="store_true")
+    build.add_argument("--redo-extract", "--redo-ocr", "--redo-images",
+                       dest="redo_extract", action="store_true",
+                       help="Force re-extraction (rasterize/OCR) of all pages")
     build.add_argument("--redo-clean",  action="store_true")
     build.add_argument("--redo-tts",    action="store_true",
                        help="Delete existing chapter WAVs and re-synthesise")
@@ -72,14 +75,14 @@ def cmd_build(args) -> None:
 
     output_stem  = args.output or pdf_path.stem
     work_dir     = Path(f"{output_stem}_workdir")
-    images_dir   = work_dir / "images"
     audio_dir    = work_dir / "audio_chunks"
     chapters_dir = work_dir / "chapters"
 
-    for d in [work_dir, images_dir, audio_dir, chapters_dir]:
+    for d in [work_dir, audio_dir, chapters_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    raw_path      = work_dir / "raw_ocr.txt"
+    pages_path    = work_dir / "pages.jsonl"
+    raw_path      = work_dir / "raw_ocr.txt"   # flat view, feeds v0 segmentation
     clean_path    = work_dir / "clean_text.txt"
     chapters_json = work_dir / "chapters.json"
 
@@ -92,38 +95,42 @@ def cmd_build(args) -> None:
     if args.author: print(f"  Author: {args.author}")
     print("=" * 58)
 
-    # ── Resume detection ──────────────────────────────
-    existing_images  = sorted(images_dir.glob("page_*.png"))
-    existing_ch_wavs = sorted(chapters_dir.glob("chapter_*.wav"))
+    manifest = Manifest.load_or_create(work_dir)
 
-    if any([existing_images, raw_path.exists(), clean_path.exists(),
-            chapters_json.exists(), existing_ch_wavs]):
-        print("\n  Resuming from existing progress:")
-        if existing_images:        print(f"    {len(existing_images)} page images")
-        if raw_path.exists():      print(f"    raw_ocr.txt")
-        if clean_path.exists():    print(f"    clean_text.txt")
-        if chapters_json.exists(): print(f"    chapters.json")
-        if existing_ch_wavs:       print(f"    {len(existing_ch_wavs)} chapter WAVs")
-        print()
+    # ── Step 1: Ingest (probe PDF, classify pages) ────
+    ingest(pdf_path, manifest)
 
-    # ── Step 1: PDF -> images ─────────────────────────
-    if existing_images and not args.redo_images:
-        print(f"[1/5] Skipping images — {len(existing_images)} exist  (--redo-images to force)")
-        image_paths = existing_images
+    # Fall back to PDF metadata for title/author when flags are omitted
+    title  = args.title or manifest.source.get("title") or pdf_path.stem
+    author = args.author or manifest.source.get("author") or ""
+
+    # ── Step 2: Extract (digital text layer / OCR) ────
+    extract_hash = hash_parts(
+        "extract-v1", manifest.source["sha256"],
+        args.dpi, args.start_page, args.end_page or 0,
+    )
+    extract_ran = False
+    if manifest.stage_fresh("extract", extract_hash) and not args.redo_extract:
+        print(f"[2/5] Extraction fresh — reusing pages.jsonl  (--redo-extract to force)")
+        pages = read_pages_jsonl(pages_path)
     else:
-        image_paths = pdf_to_images(pdf_path, images_dir, args.dpi,
-                                    args.start_page, args.end_page)
+        pages = extract_pages(pdf_path, manifest.data["pages"], dpi=args.dpi,
+                              start_page=args.start_page, end_page=args.end_page)
+        write_pages_jsonl(pages, pages_path)
+        raw_path.write_text(pages_to_flat_text(pages), encoding="utf-8")
+        scanned = [p for p in pages if p.kind == "scanned" and p.blocks]
+        manifest.qa["pages_flagged"] = [p.index for p in pages if p.flagged]
+        manifest.qa["mean_ocr_confidence"] = (
+            round(sum(p.conf for p in scanned) / len(scanned), 4) if scanned else None
+        )
+        manifest.stage_done("extract", extract_hash, artifact="pages.jsonl")
+        extract_ran = True
 
-    # ── Step 2: OCR ───────────────────────────────────
-    if raw_path.exists() and not args.redo_ocr:
-        print(f"[2/5] Skipping OCR — raw_ocr.txt exists  (--redo-ocr to force)")
-        raw_text = raw_path.read_text(encoding="utf-8")
-    else:
-        raw_text = ocr_images(image_paths)
-        raw_path.write_text(raw_text, encoding="utf-8")
+    raw_text = pages_to_flat_text(pages)
 
     # ── Step 3: Clean + chapter split ─────────────────
-    if chapters_json.exists() and not args.redo_clean:
+    # Re-segment whenever extraction re-ran: chapters.json would be stale.
+    if chapters_json.exists() and not args.redo_clean and not extract_ran:
         print(f"[3/5] Skipping clean/split — chapters.json exists  (--redo-clean to force)")
         chapters = json.loads(chapters_json.read_text(encoding="utf-8"))
     else:
@@ -154,13 +161,12 @@ def cmd_build(args) -> None:
     # ── Step 5: Compile M4B ───────────────────────────
     final = compile_m4b(
         chapter_results, output_stem,
-        title=args.title or pdf_path.stem,
-        author=args.author,
+        title=title,
+        author=author,
     )
 
     if not args.keep_temp:
-        shutil.rmtree(images_dir, ignore_errors=True)
-        shutil.rmtree(audio_dir,  ignore_errors=True)
+        shutil.rmtree(audio_dir, ignore_errors=True)
 
     print("\n" + "=" * 58)
     print(f"  Done!  ->  {final}")
