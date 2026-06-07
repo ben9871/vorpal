@@ -37,7 +37,10 @@ def _wav_bytes_to_array(wav_bytes: bytes) -> Optional[np.ndarray]:
     riff, size, wave = struct.unpack_from("<4sI4s", buf.read(12))
     if riff != b"RIFF" or wave != b"WAVE":
         raise ValueError("Response is not a valid WAV file")
-    # Find 'data' chunk
+    # Find 'data' chunk; initialize fmt fields so they're defined if data comes first
+    bits: int = 0
+    channels: int = 1
+    sample_rate: int = 0
     while True:
         hdr = buf.read(8)
         if len(hdr) < 8:
@@ -51,6 +54,8 @@ def _wav_bytes_to_array(wav_bytes: bytes) -> Optional[np.ndarray]:
             if audio_fmt != 1:
                 raise ValueError(f"Unsupported WAV format {audio_fmt} (expected PCM=1)")
         elif chunk_id == b"data":
+            if bits == 0:
+                raise ValueError("WAV fmt chunk missing before data chunk")
             if bits == 16:
                 raw = np.frombuffer(chunk_data, dtype="<i2").astype("float32") / 32768.0
             elif bits == 32:
@@ -61,7 +66,6 @@ def _wav_bytes_to_array(wav_bytes: bytes) -> Optional[np.ndarray]:
                 # Stereo → mono by averaging
                 raw = raw.reshape(-1, channels).mean(axis=1)
             return raw
-    return None
 
 
 class APIEngine(TTSEngine):

@@ -115,6 +115,8 @@ def acoustic_delta(audio_a: np.ndarray, audio_b: np.ndarray,
       dur_diff: relative duration difference (0–1)
       passes:   True if either metric exceeds the 5 % threshold
     """
+    if len(audio_a) == 0 or len(audio_b) == 0:
+        raise ValueError("acoustic_delta requires non-empty audio arrays")
     rms_a = float(np.sqrt(np.mean(audio_a ** 2)))
     rms_b = float(np.sqrt(np.mean(audio_b ** 2)))
     dur_a = len(audio_a) / max(sample_rate, 1)

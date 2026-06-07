@@ -278,8 +278,8 @@ def tag_chapter(body: str, title: str, cache_dir: Path,
             cached = json.loads(cache_file.read_text(encoding="utf-8"))
             cached["cache_hit"] = True
             return cached
-        except (json.JSONDecodeError, KeyError):
-            pass  # corrupt cache — re-tag
+        except (json.JSONDecodeError, KeyError, OSError):
+            pass  # corrupt or missing cache — re-tag
 
     raw_entries = _tag_via_backend(paragraphs, title, model, backend)
     gated = _apply_confidence_gate(raw_entries)

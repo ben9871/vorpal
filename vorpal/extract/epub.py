@@ -73,8 +73,8 @@ class _TextExtractor(html.parser.HTMLParser):
 
 def _html_to_text(content: bytes) -> str:
     try:
-        source = content.decode("utf-8", errors="replace")
-    except Exception:
+        source = content.decode("utf-8")
+    except (UnicodeDecodeError, ValueError):
         source = content.decode("latin-1", errors="replace")
     parser = _TextExtractor()
     parser.feed(source)
@@ -178,7 +178,7 @@ def _parse_nav(zf: zipfile.ZipFile, nav_href: str) -> list:
 
 
 def _parse_ncx(zf: zipfile.ZipFile, ncx_href: str) -> list:
-    """EPUB2 NCX → [(title, content_src), ...] (top-level navPoints only)."""
+    """EPUB2 NCX → [(title, content_src), ...] for all navPoints (all depths)."""
     ncx_dir = _opf_dir(ncx_href)
     xml = zf.read(ncx_href).decode("utf-8", errors="replace")
     root = ET.fromstring(xml)

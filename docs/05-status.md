@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 8 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 10 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -23,8 +23,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 6 — voice suite v1 (registry, blends, audition) | ✅ done | commit `a06372f` |
 | Phase 7 — first tone-capable engine (credential gate) | ✅ done (pending live acceptance) | commit `5def893` |
 | Phase 8 — tone tagging + effectiveness gates (`--expressive`) | ✅ done (pending live + human acceptance) | commit `0aa56d8` |
-| **Arc 3: Phase 10 — Arc 2 hardening & self-review** | ⬅ **next** | roadmap |
-| Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | queued | roadmap |
+| Arc 3: Phase 10 — Arc 2 hardening & self-review | ✅ done | commit Phase 10 |
+| **Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict)** | ⬅ **next** | roadmap |
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
@@ -37,6 +37,55 @@ protocol** in [`CLAUDE.md`](../CLAUDE.md): commit + status-update per phase, no
 spend / no big downloads / no remote pushes / no irreversible ops, mark blocked
 honestly, and if you run out of work write a proposal and stop cleanly. The
 `cli` tone backend (subscription) means Phase 11 needs **no API money**.
+
+## Phase 10 acceptance results
+
+**337 tests green** (337 = 327 pre-existing + 10 new in `test_phase10.py`).
+
+### Review notes — what was checked
+
+Modules reviewed: `extract/epub.py`, `extract/text.py`, `tts/voices.py`,
+`tts/api_engine.py`, `tts/kokoro_approx.py`, `tone.py`, `master.py` (cache).
+
+Bug classes scanned: encoding issues, unclosed handles, cache-key correctness,
+empty/degenerate inputs, malformed EPUB/TXT, error paths that swallow failures.
+
+### Bugs found and fixed (each has a regression test)
+
+1. **`tts/api_engine.py` `_wav_bytes_to_array()`** — `UnboundLocalError` when a
+   WAV `data` chunk appears before the `fmt` chunk. `bits`, `channels`,
+   `sample_rate` were not initialized before the parsing loop. Fixed: initialize
+   them to sentinel values; raise `ValueError("WAV fmt chunk missing before data
+   chunk")` in the `data` branch if `bits == 0`. Tests:
+   `test_wav_bytes_to_array_data_before_fmt_raises_valueerror`,
+   `test_wav_bytes_to_array_normal`.
+
+2. **`tts/kokoro_approx.py` `acoustic_delta()`** — empty arrays silently
+   produced NaN and returned `passes=False` rather than raising. NumPy warns but
+   the gate logic saw `nan >= 0.05 == False`. Fixed: guard at function entry with
+   `ValueError("acoustic_delta requires non-empty audio arrays")`. Tests:
+   `test_acoustic_delta_empty_*`.
+
+3. **`tone.py` `tag_chapter()` cache read** — TOCTOU: the `exists()` → `read_text()`
+   window was not guarded against `FileNotFoundError` (the except clause only
+   caught `JSONDecodeError, KeyError`). A cache file disappearing between the two
+   calls would surface as an uncaught exception. Fixed: added `OSError` to the
+   except tuple. Test: `test_tag_chapter_cache_oserror_caught`.
+
+4. **`extract/epub.py` `_html_to_text()`** — `decode("utf-8", errors="replace")`
+   never raises, so the latin-1 fallback was dead code. Non-UTF-8 HTML
+   (e.g., ISO-8859-1 encoded EPUBs) would silently get replacement characters
+   instead of correct text. Fixed: decode without `errors=` first; catch
+   `UnicodeDecodeError` and fall back to latin-1. Also fixed misleading comment
+   in `_parse_ncx` ("top-level navPoints only" was wrong — it iterates all
+   depths). Tests: `test_html_to_text_latin1_fallback`,
+   `test_html_to_text_utf8_works`.
+
+### No regressions
+
+All 327 pre-existing tests still pass.
+
+---
 
 ## Phase 8 acceptance results
 
