@@ -87,6 +87,12 @@ def build_parser() -> argparse.ArgumentParser:
                             "classification workhorse; sonnet to compare tag quality "
                             "in the effectiveness eval). Never Opus — tagging is a "
                             "weak-model task on either backend.")
+    build.add_argument("--lexicon", action="store_true",
+                       help="Propose pronunciations for proper nouns; stored in "
+                            "book.json for review/approval (requires LLM backend)")
+    build.add_argument("--lexicon-backend", choices=["cli", "api"], default="cli",
+                       dest="lexicon_backend",
+                       help="Backend for lexicon proposal (default: cli/subscription)")
     build.add_argument("--asr-check", action="store_true",
                        help="After synthesis, transcribe a sample of chunks with "
                             "Whisper and compute word-error rate; outliers are listed "
@@ -107,6 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--tones", action="store_true",
                         help="Print the per-chapter tone map (requires a prior "
                              "--expressive build)")
+    review.add_argument("--lexicon", action="store_true",
+                        help="Print the pronunciation lexicon table (requires a "
+                             "prior --lexicon build)")
 
     voices_cmd = sub.add_parser("voices", help="List available narrator voices")
     voices_cmd.add_argument("--sample", action="store_true",
@@ -256,6 +265,37 @@ def cmd_build(args) -> None:
                 body, encoding="utf-8")
         chapters.append({"title": s.title, "body": body, "skip": not s.include,
                          "spoken_intro": s.spoken_intro})
+
+    # ── Optional: pronunciation lexicon (--lexicon) ──────
+    if getattr(args, "lexicon", False):
+        from .lexicon import propose_lexicon, merge_lexicon, apply_lexicon_to_text
+        lex_cache = work_dir / "lexicon_cache"
+        lex_model = "claude-haiku-4-5"
+        lex_backend = getattr(args, "lexicon_backend", "cli")
+        print(f"\n[3.7/5] Pronunciation lexicon ({lex_backend})...")
+        # Build full-book text for proper-noun extraction
+        full_text = "\n\n".join(c["body"] for c in chapters if not c["skip"])
+        try:
+            proposed = propose_lexicon(
+                full_text, title, lex_cache,
+                model=lex_model, backend=lex_backend,
+            )
+        except RuntimeError as e:
+            print(f"  WARN: Lexicon proposal failed: {e}")
+            proposed = []
+        # Merge proposals into the manifest lexicon (preserves existing approvals)
+        existing = manifest.data.get("lexicon", [])
+        updated = merge_lexicon(existing, proposed)
+        manifest.data["lexicon"] = updated
+        manifest.save()
+        n_approved = sum(1 for e in updated if e.get("approved"))
+        print(f"  {len(updated)} entries ({n_approved} approved, "
+              f"{len(updated) - n_approved} pending review)")
+        if n_approved:
+            print(f"  Applying {n_approved} approved entries to chapter bodies...")
+        # Apply approved entries to chapter bodies
+        for ch in chapters:
+            ch["body"] = apply_lexicon_to_text(ch["body"], updated)
 
     # ── Step 4: TTS ───────────────────────────────────
     if args.redo_tts and chapters_dir.exists():
@@ -557,6 +597,25 @@ def cmd_review(args) -> None:
                 ctr = Counter(tones)
                 parts = ", ".join(f"{t}={n}" for t, n in ctr.most_common())
                 print(f"  [{s.title[:40]}]: {parts}")
+
+    # --lexicon: print the pronunciation lexicon from the manifest
+    if getattr(args, "lexicon", False):
+        lexicon = manifest.data.get("lexicon", [])
+        if not lexicon:
+            print("\n  No lexicon found — run `vorpal build --lexicon` first.")
+        else:
+            n_approved = sum(1 for e in lexicon if e.get("approved"))
+            print(f"\n  Pronunciation lexicon: {len(lexicon)} entries "
+                  f"({n_approved} approved, {len(lexicon) - n_approved} pending)\n")
+            print(f"  {'Word':<25} {'Spoken form':<30} Approved")
+            print(f"  {'─'*25} {'─'*30} {'─'*8}")
+            for entry in sorted(lexicon, key=lambda e: e.get("word", "").lower()):
+                word = entry.get("word", "")[:24]
+                spoken = entry.get("spoken_form", "")[:29]
+                approved_flag = "yes" if entry.get("approved") else "no"
+                print(f"  {word:<25} {spoken:<30} {approved_flag}")
+            print(f"\n  To approve an entry: edit 'approved': true in {manifest_path}")
+            print(f"  Then run `vorpal build --lexicon` to apply approved entries.")
 
     out_flag = f" --output {args.output}" if args.output else ""
     if args.approve:

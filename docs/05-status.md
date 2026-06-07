@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 12 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 13 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -26,19 +26,63 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 10 — Arc 2 hardening & self-review | ✅ done | commit Phase 10 |
 | Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | ✅ done (pending live acceptance) | commit Phase 11 |
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | ✅ done | commit Phase 12 |
-| **Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`)** | ⬅ **next** | roadmap |
-| Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
-| Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
-| Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
+| Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | ✅ done | commit Phase 13 |
+| **Arc 3: Phase 14 — draft-mode builds (`--draft`)** | ⬅ **next** | roadmap |
 | Phase 9 — in-house voices (hands-on spike, **playground-isolated**, run last) | queued | roadmap |
 
-**Next-up (unsupervised day, execution order):** Phase **10 → 11 → 12 → 13 →
-14**, then Phase **9** (proposal-only research) last. Full specs +
-acceptance in [04-roadmap.md](04-roadmap.md) Arc 3. Obey the **Unsupervised-run
-protocol** in [`CLAUDE.md`](../CLAUDE.md): commit + status-update per phase, no
-spend / no big downloads / no remote pushes / no irreversible ops, mark blocked
-honestly, and if you run out of work write a proposal and stop cleanly. The
-`cli` tone backend (subscription) means Phase 11 needs **no API money**.
+**Next-up:** Phase **14** (draft-mode builds `--draft`), then Phase **9**
+(in-house voices playground spike). Full specs + acceptance in
+[04-roadmap.md](04-roadmap.md) Arc 3.
+
+## Phase 13 acceptance results
+
+**403 tests green** (403 = 372 Phase-12 + 31 new in `test_phase13.py`).
+
+### What was built
+
+- `vorpal/lexicon.py`:
+  - `extract_proper_nouns(text)` — heuristic capitalization scan (skips
+    sentence-initial words and a `_COMMON_CAPS` filter); caps at 100 words
+  - `propose_lexicon(body_text, title, cache_dir, model, backend)` — LLM pass
+    via `cli` (subscription) or `api` (VORPAL_ANTHROPIC_KEY); caches by
+    `(word_list_hash, title, prompt_version)` so a book is proposed only once
+  - `_call_backend(user_msg, model, backend)` — dispatches to `claude -p` or
+    anthropic SDK; raises `RuntimeError` on missing credential/CLI
+  - `_parse_proposal(raw)` — strips ` ```json ` fences, parses JSON array,
+    skips identity entries (`word == spoken_form`) and entries with empty fields
+  - `apply_lexicon_to_text(text, lexicon_entries)` — word-boundary regex
+    substitution, approved entries only, longest-word-first to avoid partial
+    matches; identity for unapproved entries
+  - `merge_lexicon(existing, proposed)` — adds new words, updates unapproved
+    spoken forms, never overwrites approved entries
+  - `_cache_key(word_list, title)` — SHA-256 of sorted word list + title +
+    prompt_version, first 16 hex chars
+
+- `cli.py` (build):
+  - `--lexicon` flag: extracts proper nouns, calls `propose_lexicon`, merges
+    into `manifest.data["lexicon"]`, saves manifest, applies approved entries
+    to chapter bodies before TTS
+  - `--lexicon-backend cli|api` (default: cli/subscription)
+
+- `cli.py` (review):
+  - `--lexicon` flag: prints table of all lexicon entries (word, spoken form,
+    approved status) from the manifest; instructions for approving
+
+### (blocked) live acceptance items
+
+- **(blocked: claude -p not authenticated in container)** Live lexicon proposal
+  via the `cli` backend — requires `claude /login` first.
+- **(blocked: zero API credits)** Live lexicon proposal via the `api` backend.
+- **(blocked: both above)** End-to-end test of `--lexicon` + `--lexicon` apply
+  path in a real build (lexicon wiring is correct by code review; blocked only
+  by LLM credentials).
+
+### Deterministic path unaffected
+
+Building without `--lexicon` is byte-identical to pre-Phase-13 output.
+The lexicon is an optional edge: no `--lexicon` → no change to chapter bodies.
+
+---
 
 ## Phase 12 acceptance results
 
@@ -320,26 +364,35 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 322 passed
+python -m pytest -q                  # should be 403 passed
 
-# Verify Phase 8 additions:
-vorpal voices                        # 14 narrators (11 kokoro + 3 openai)
-vorpal build book.epub --expressive  # runs tone tagger + KokoroApproxEngine
-                                     # (blocked until API credits added)
+# Verify Phase 13 additions:
+vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth)
+vorpal review book.epub --lexicon    # prints lexicon table from manifest
 
-# What to verify on a GPU + credit machine:
-#   1. vorpal build firestone.pdf --expressive
-#      → tone histogram shows neutral fraction ≳ 60%
-#   2. second run → 100% cache hit on tagging
-#   3. vorpal voices --sample → voices_preview/ plays correctly
-#   4. A/B kit: compare --expressive vs plain build on a 1-min clip
+# What to verify on a GPU + credential machine:
+#   1. vorpal build firestone.pdf --expressive → tone histogram ≳ 60% neutral
+#   2. vorpal build firestone.pdf --lexicon → lexicon proposed and stored
+#   3. manually approve one entry; re-run build → entry applied before TTS
+#   4. A/B kit compare --expressive vs plain (human listening verdict pending)
 ```
 
-## What to build next (Phase 9 or corpus expansion)
+## What to build next
 
-Phase 9 — in-house voices (spike only): design + one proof-of-concept voice,
-per the guardrails in [04-roadmap.md](04-roadmap.md). Full phase plan gets
-written only after the spike reports.
+**Phase 14 — draft-mode builds (`--draft`)**
 
-Alternatively: resolve Phase 7/8 live acceptance items (add API credits, add
-OpenAI key) and complete the human acceptance items before starting Phase 9.
+Add a `--draft` flag to `vorpal build`. When active:
+- Skip the mastering step (no AAC, no chapter markers, no m4b container).
+- Emit a single concatenated `.wav` (or `.mp3` if ffmpeg present) containing
+  all included chapters in order.
+- The output file is `<stem>_draft.wav` next to the workdir.
+- Purpose: fast iteration when tweaking TTS settings, tone tags, or lexicon
+  entries — the round-trip is ~10× faster without mastering and the output
+  can be played immediately.
+- Acceptance: `vorpal build tests/fixtures/outline.pdf --draft --end-page 3`
+  produces a `.wav` file; duration ≥ 1 s; all pytest tests still green.
+
+**Phase 9 — in-house voices (playground-isolated spike)**
+
+Playground-isolated experiment (`playground/` only, never shipped). See
+[04-roadmap.md](04-roadmap.md) for guardrails. Run last.
