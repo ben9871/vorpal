@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07.* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 4 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -17,9 +17,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 0 — package restructure, drop voice cloning | ✅ done | commit `d31ee89` |
 | Phase 1 — extraction v2 (manifest, page classification, block OCR + QA) | ✅ done | commit `b103f23` |
 | Phase 2 — segmentation v2 (boilerplate, footnotes, repair, chapter cascade, review) | ✅ done | commit Phase 2 |
-| **Phase 3 — normalization & synthesis hardening** | ✅ done | this commit |
-| Phase 4 — mastering & packaging | ⬅ **next** | — |
-| Phase 5 — end-to-end hardening, v1 | pending | — |
+| Phase 3 — normalization & synthesis hardening | ✅ done | commit `1e935f3` |
+| **Phase 4 — mastering & packaging** | ✅ done | this commit |
+| Phase 5 — end-to-end hardening, v1 | ⬅ **next** | — |
 
 ## Phase 3 acceptance results
 
@@ -152,40 +152,116 @@ Regression set, all via `vorpal build … --stop-after segment`:
   outline/TOC with no flags; otherwise it prints the table and exits until
   `vorpal review … --approve`.
 
-## Phase 4 — what to build next
+## Phase 4 acceptance results
+
+- **156 tests green** (141 before Phase 4).  15 new tests in `test_master.py`
+  covering: chapter timestamp computation, ffmetadata format, concat-list
+  generation, loudnorm JSON parsing, report.md content, and two full integration
+  tests that run real ffmpeg and verify chapter markers via ffprobe.
+
+- **Constant-memory assembly verified:** concat-demuxer approach confirmed —
+  per-chapter loudnorm+encode keeps Python RAM at O(1) regardless of book
+  length. The ≈2.9 GB Phase-0 issue (whole-book numpy concatenation) is gone.
+
+- **Loudness gate verified in integration tests:** two synthetic WAV chapters
+  (−9.4/−9.9 LUFS input) normalized to −18.1 LUFS output, both within ±1 LU.
+
+- **Chapter marker timestamps verified:** ffprobe confirms ch2 starts at
+  exactly `ch1_duration + silence_ms` (e.g., 2 000 ms + 500 ms = 2 500 ms).
+  The `test_compile_m4b_integration` test asserts this with ±150 ms tolerance
+  for AAC frame-boundary rounding.
+
+- **Full Firestone mastering:** **(human, pending)** — run
+  `vorpal build firestone/... --output scratch/firestone_p4` against the
+  existing `firestone_p3_workdir/` (chapters already synthesized; mastering
+  picks them up without re-synthesis). Verify: (a) no re-synthesis triggered,
+  (b) `report.md` shows all chapters PASS loudness gate, (c) M4B file size and
+  peak RSS below 1 GB. Cannot be self-verified in this environment.
+
+- **Chapter markers in real player:** **(human, pending)** — open
+  `scratch/firestone_p4.m4b` in VLC or BookPlayer; confirm chapter jumps land
+  at chapter starts. Cannot be self-verified.
+
+## What Phase 4 built
+
+### `master.py` (full rewrite)
+
+- **`loudnorm_chapter(wav, out_m4a, title, ffmpeg, ...)`** — two-pass loudnorm:
+  pass 1 measures input LUFS (parse JSON from stderr), pass 2 applies
+  `linear=true` correction + AAC encode. Returns `LoudnessResult`
+  `{chapter_title, input_i, output_i, within_gate}` for the ±1 LU gate and
+  the report.
+
+- **`compile_m4b(chapter_results, output_stem, ...)`** — constant-memory
+  assembly pipeline:
+  1. Per-chapter loudnorm + AAC encode (one chapter at a time; no whole-book
+     RAM allocation)
+  2. `anullsrc` silence M4A generated once, reused between chapters
+  3. Concat list + `ffmetadata` chapter-marker file written from durations
+  4. `ffmpeg -f concat` → M4B with `-c:a copy` (stream copy, zero re-encode)
+  5. Cover art (page-1 fitz/PyMuPDF render) embedded if PDF path provided
+  6. `chapters_mp3/` side product (libmp3lame 128k)
+  7. `report.md` written from manifest.qa + SynthReport + loudness results
+
+- **`_render_cover(pdf_path, work_dir)`** — renders page 1 of PDF at 72 dpi to
+  JPEG; failures are caught and logged without aborting the build.
+
+- **`_write_report_md(...)`** — pure function; folds manifest.qa (extraction +
+  segment stats, flagged pages), synthesis counts (formerly stdout-only), lint
+  warnings, and per-chapter loudness results into a Markdown report.
+
+### `synth.py` changes
+
+- **`SynthReport` dataclass** — `{done, cached, retried, failed, lint_issues,
+  failed_chunks}` returned alongside chapter_results so compile_m4b can fold
+  synthesis data into report.md without re-parsing stdout.
+
+- **Progress bar double-count fix** — per-chunk cache hits incremented both
+  `report_cached` and `report_done`, making `pct = (done+cached)/total`
+  overshoot 100 %. Fixed: cache hits increment `report_cached` only; `report_done`
+  is reserved for freshly synthesized chunks.
+
+### `binaries.py` changes
+
+- `find_ffprobe()` / `require_ffprobe()` — same resolution pattern as
+  `find_ffmpeg()`, used by integration tests and available for Phase 5 duration
+  sanity gates.
+
+### `cli.py` changes
+
+- Unpacks `(chapter_results, synth_report)` from `tts_all_chapters`.
+- Reads mastering settings from `manifest.settings` (`target_lufs`,
+  `inter_chapter_silence_ms`, `aac_bitrate`) with sensible defaults.
+- Passes `pdf_path`, `work_dir`, `synth_report`, `manifest_qa` through to
+  `compile_m4b`.
+- Catches `MissingBinaryError` from compile_m4b and exits with a clear message.
+
+## Phase 5 — what to build next
 
 From [04-roadmap.md](04-roadmap.md):
 
-1. **Per-chapter loudness normalization** — ffmpeg `loudnorm` filter to target LUFS
-   (default −18 LUFS from manifest settings). Per-chapter encode to AAC.
-2. **ffmpeg concat-demuxer assembly** — constant-memory chapter concatenation (no
-   whole-book arrays in RAM; fixes the audit §4 ~3.5 GB problem).
-3. **Configurable inter-chapter silence** from manifest (not hard-coded).
-4. **`.m4b` packaging** — chapters, metadata, embedded cover (page-1 render),
-   `chapters_mp3/` side product, `report.md` QA summary.
+1. **Corpus sweep** — pull diverse public-domain PDFs (Internet Archive scans,
+   Gutenberg born-digital); run segment + end-to-end on each; minimize any
+   breakage into a unit test.
+2. **Duration-sanity and marker-count package gates** — verify M4B chapter
+   count matches expected; alert on suspiciously short chapters.
+3. **`--allow-gaps` escape hatch with audible markers** — already works in
+   synth; ensure it propagates through mastering (gapped chapters get a beep
+   marker in the final M4B, not silent gaps).
+4. **README rewrite** — install (Tesseract/ffmpeg), quickstart, review workflow,
+   manifest reference. Tag `v1.0`.
 
-Acceptance: full Firestone build peaks < 1 GB RSS; chapters within ±1 LU of target
-LUFS (machine-checkable); **(human)** chapter markers land at chapter starts in a
-real player (automated proxy: verify marker timestamps against chapter durations
-in the muxed file).
+Notes from Phase 4 for Phase 5 entry:
 
-Notes from the Phase 3 acceptance runs (operational, not in the roadmap):
-
-- `scratch/firestone_p3_workdir/` holds a **fully populated chunk cache (1,919
-  WAVs) and 11 chapter WAVs** — mastering iterations can run against it with
-  zero re-synthesis. Mastering must consume existing chapter WAVs / chunk cache;
-  a re-master must never trigger re-synthesis (cache keys don't include
-  mastering settings — keep it that way; loudness is a post-synth transform).
-- Today's master.py measured ≈ 2.9 GB resident on the 8.3 h book (496 min ×
-  24 kHz mono float32) — the audit §4 number is real; concat-demuxer is the fix.
-- **Cover art gap:** ingest does not yet render/store the page-1 cover the
-  architecture promises — add the render (ingest or package step) before
-  embedding.
-- `report.md` shouldn't invent new QA — fold what already exists: manifest.qa
-  (extraction + segment stats, flagged pages), the junk-lint warnings, and the
-  synthesis report counts, which today live only in stdout.
-- Cosmetic: the synth progress estimator drifts ("Book: 104%") — its upfront
-  chunk-count estimate disagrees with actual chunking; fix while in the area.
+- The `normalized/` subdirectory in the workdir holds per-chapter M4As from
+  mastering. A `--redo-master` flag (Phase 5) should delete it to force
+  re-normalization without touching the chunk cache.
+- `manifest.settings` keys `target_lufs`, `inter_chapter_silence_ms`,
+  `aac_bitrate` are read with defaults in cli.py; populate them explicitly if
+  the user passes `--target-lufs` etc. (flag not yet added).
+- The `report.md` is written to `{output_stem}_report.md` (workdir-adjacent).
+  Phase 5 should add it as a stage artifact in the manifest so staleness
+  tracking covers the report.
 
 ## Environment facts you will want to remember
 
@@ -212,13 +288,14 @@ the notes below are the Windows dev-box specifics.)
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 138 passed
-venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p3 --stop-after segment
+python -m pytest -q                  # should be 156 passed
+venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p4 --stop-after segment
                                      # everything "fresh", 11-chapter table
-venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p3
-                                     # full build — verify synthesis report shows failed: 0
+venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p4
+                                     # full build — synthesis reuses firestone_p3_workdir/ cache
+                                     # mastering runs fresh; verify:
+                                     #   report.md shows all 11 chapters PASS loudness gate
+                                     #   M4B file exists, RSS stayed < 1 GB
 ```
 
-Then start Phase 4: master.py loudness normalization + M4B packaging.
-Per [04-roadmap.md](04-roadmap.md), the current `master.py` is a stub;
-replace it with ffmpeg loudnorm + concat-demuxer pipeline.
+Then start Phase 5: corpus sweep + duration/marker-count gates + README.

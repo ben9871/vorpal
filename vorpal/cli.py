@@ -27,6 +27,7 @@ from . import __version__
 from .extract import extract_pages, pages_to_flat_text, read_pages_jsonl, write_pages_jsonl
 from .ingest import ingest
 from .manifest import Manifest, hash_parts
+from .binaries import MissingBinaryError
 from .master import compile_m4b
 from .segment import Section, section_body, segment_pages
 from .synth import safe_filename, tts_all_chapters
@@ -236,18 +237,35 @@ def cmd_build(args) -> None:
             f.unlink()
 
     engine = KokoroEngine(voice=args.voice, speed=args.speed)
-    chapter_results = tts_all_chapters(chapters, audio_dir, chapters_dir, engine,
-                                       allow_gaps=getattr(args, "allow_gaps", False))
+    chapter_results, synth_report = tts_all_chapters(
+        chapters, audio_dir, chapters_dir, engine,
+        allow_gaps=getattr(args, "allow_gaps", False),
+    )
 
     if not chapter_results:
         sys.exit("ERROR: No audio generated.")
 
-    # ── Step 5: Compile M4B ───────────────────────────
-    final = compile_m4b(
-        chapter_results, output_stem,
-        title=title,
-        author=author,
-    )
+    # ── Step 5: Mastering & packaging ─────────────────
+    settings = manifest.settings
+    target_lufs = float(settings.get("target_lufs", -18.0))
+    silence_ms  = int(settings.get("inter_chapter_silence_ms", 1500))
+    aac_bitrate = str(settings.get("aac_bitrate", "64k"))
+
+    try:
+        final = compile_m4b(
+            chapter_results, output_stem,
+            title=title,
+            author=author,
+            target_lufs=target_lufs,
+            inter_chapter_silence_ms=silence_ms,
+            aac_bitrate=aac_bitrate,
+            pdf_path=pdf_path,
+            work_dir=work_dir,
+            synth_report=synth_report,
+            manifest_qa=manifest.qa,
+        )
+    except MissingBinaryError as e:
+        sys.exit(f"ERROR: {e}")
 
     if not args.keep_temp:
         shutil.rmtree(audio_dir, ignore_errors=True)

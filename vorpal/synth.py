@@ -13,6 +13,7 @@ Phase 3 rewrite. Replaces the Phase-0 warn-and-skip loop with:
 import json
 import re
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +22,17 @@ from .normalize import (
     spoken_form, _sentences, _text_hash, PAUSE_PARAGRAPH_MS,
 )
 from .tts.base import TTSEngine
+
+
+@dataclass
+class SynthReport:
+    """Synthesis run statistics, returned alongside chapter_results."""
+    done: int = 0
+    cached: int = 0
+    retried: int = 0
+    failed: int = 0
+    lint_issues: list = field(default_factory=list)
+    failed_chunks: list = field(default_factory=list)
 
 
 def safe_filename(s: str) -> str:
@@ -234,7 +246,6 @@ def tts_all_chapters(
             if cache_path.exists():
                 chunk_wavs.append((cache_path, chunk.pause_after_ms))
                 report_cached += 1
-                report_done += 1
                 # Update progress display
                 i = chunk.idx
                 pct = (report_done + report_cached) / max(total_chunks, 1) * 100
@@ -338,11 +349,19 @@ def tts_all_chapters(
         for fc in failed_chunks:
             print(f"    Chapter '{fc['chapter']}' chunk {fc['chunk_idx']}: "
                   f"{fc['text'][:60]!r}")
-    if any(chapter_lint_issues):
+    flat_lint = [issue for issues in chapter_lint_issues for issue in issues]
+    if flat_lint:
         print(f"\n  Lint warnings (residual OCR artifacts — verify these segments):")
-        for issues in chapter_lint_issues:
-            for issue in issues:
-                print(f"    [{issue['chapter']}] chunk {issue['chunk_idx']} "
-                      f"({issue['pattern']}): {issue['snippet'][:60]!r}")
+        for issue in flat_lint:
+            print(f"    [{issue['chapter']}] chunk {issue['chunk_idx']} "
+                  f"({issue['pattern']}): {issue['snippet'][:60]!r}")
 
-    return results
+    report = SynthReport(
+        done=report_done,
+        cached=report_cached,
+        retried=report_retried,
+        failed=report_failed,
+        lint_issues=flat_lint,
+        failed_chunks=failed_chunks,
+    )
+    return results, report

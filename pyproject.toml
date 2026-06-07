@@ -33,3 +33,6 @@ include = ["vorpal*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests that require external binaries (ffmpeg/ffprobe)",
+]

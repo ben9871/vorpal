@@ -70,3 +70,25 @@ def require_ffmpeg() -> str:
             f"  Or set {FFMPEG_ENV} to the ffmpeg executable path."
         )
     return path
+
+
+FFPROBE_ENV = "VORPAL_FFPROBE"
+
+_FFPROBE_FALLBACKS = [
+    r"C:\ffmpeg\bin\ffprobe.exe",
+]
+
+
+def find_ffprobe() -> str | None:
+    return _find("ffprobe", FFPROBE_ENV, _FFPROBE_FALLBACKS)
+
+
+def require_ffprobe() -> str:
+    path = find_ffprobe()
+    if not path:
+        raise MissingBinaryError(
+            "ffprobe not found.\n"
+            "  Install: https://www.gyan.dev/ffmpeg/builds/ (Windows)\n"
+            f"  Or set {FFPROBE_ENV} to the ffprobe executable path."
+        )
+    return path
