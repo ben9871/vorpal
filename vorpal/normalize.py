@@ -442,6 +442,54 @@ def normalize_chapter(body: str, max_chars: int = 400,
     return chunks
 
 
+def normalize_with_tones(body: str, paragraph_tones: list,
+                         max_chars: int = 400) -> list:
+    """Produce Chunks with tone annotations from paragraph-level tags.
+
+    paragraph_tones: list of tone strings (one per paragraph, in order).
+    Excess tones are ignored; missing tones fall back to 'neutral'.
+
+    Groups consecutive same-tone paragraphs into 'tone runs', chunks each run
+    independently (so chunks never cross a tone boundary), annotates each chunk
+    with the run's tone ('neutral' is stored as None to match the base schema).
+    """
+    paragraphs = [p.strip() for p in re.split(r"\n\n+", body) if p.strip()]
+    n = len(paragraphs)
+    if not n:
+        return []
+
+    tones = list(paragraph_tones) + ["neutral"] * max(0, n - len(paragraph_tones))
+    tones = tones[:n]
+
+    # Group into (tone, combined_text) runs
+    runs = []
+    i = 0
+    while i < n:
+        tone = tones[i]
+        run_paras = [paragraphs[i]]
+        j = i + 1
+        while j < n and tones[j] == tone:
+            run_paras.append(paragraphs[j])
+            j += 1
+        runs.append((tone, "\n\n".join(run_paras)))
+        i = j
+
+    # Chunk each run, annotating with tone (None for neutral)
+    all_chunks = []
+    for tone, run_text in runs:
+        run_chunks = normalize_chapter(run_text, max_chars=max_chars)
+        tone_val = None if tone == "neutral" else tone
+        for c in run_chunks:
+            all_chunks.append(Chunk(c.idx, c.text, c.pause_after_ms, tone_val,
+                                    c.text_hash))
+
+    # Re-index sequentially
+    for i, c in enumerate(all_chunks):
+        all_chunks[i] = Chunk(i, c.text, c.pause_after_ms, c.tone, c.text_hash)
+
+    return all_chunks
+
+
 def assert_no_loss(body: str, chunks: list) -> None:
     """Assert no text is dropped between normalization and chunking.
 

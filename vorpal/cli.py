@@ -75,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--max-cost", type=float, default=None, metavar="USD",
                        help="Abort before synthesis if estimated API cost exceeds this "
                             "amount in USD (e.g. --max-cost 5.00); ignored for local engines")
+    build.add_argument("--expressive", action="store_true",
+                       help="Enable tone-tagged expressive narration via the Kokoro "
+                            "approximation layer (requires VORPAL_ANTHROPIC_KEY for tagging)")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -83,6 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Workdir stem if it differs from the input file name")
     review.add_argument("--approve", action="store_true",
                         help="Mark the chapter list as approved for synthesis")
+    review.add_argument("--tones", action="store_true",
+                        help="Print the per-chapter tone map (requires a prior "
+                             "--expressive build)")
 
     voices_cmd = sub.add_parser("voices", help="List available narrator voices")
     voices_cmd.add_argument("--sample", action="store_true",
@@ -247,6 +253,40 @@ def cmd_build(args) -> None:
     manifest.data["settings"]["voice_params"] = voice_entry.params
     manifest.save()
 
+    # ── Optional: tone tagging (--expressive) ────────────
+    if getattr(args, "expressive", False):
+        from .tone import tag_chapter, tone_histogram, TONE_VOCAB
+        tone_cache = work_dir / "tone_cache"
+        print(f"\n[3.5/5] Tone tagging ({len([c for c in chapters if not c['skip']])} chapters)...")
+        chapter_tones = []
+        tag_ok = True
+        for ch in chapters:
+            if ch["skip"]:
+                chapter_tones.append([])
+                continue
+            try:
+                result = tag_chapter(ch["body"], ch["title"], tone_cache)
+                tones = result.get("tones", [])
+                ch["paragraph_tones"] = tones
+                chapter_tones.append(tones)
+                cache_label = " (cached)" if result.get("cache_hit") else ""
+                n_tagged = len(tones)
+                n_neutral = sum(1 for t in tones if t == "neutral")
+                print(f"  {ch['title'][:50]}: {n_tagged} paras, "
+                      f"{n_neutral}/{n_tagged} neutral{cache_label}")
+            except RuntimeError as e:
+                print(f"  WARN: Tone tagging failed for '{ch['title']}': {e}")
+                ch["paragraph_tones"] = []
+                chapter_tones.append([])
+                tag_ok = False
+
+        if chapter_tones:
+            hist = tone_histogram(chapter_tones)
+            print(f"  Tone histogram: {hist['counts']}")
+            print(f"  Neutral fraction: {hist['neutral_fraction']:.1%}")
+            manifest.data["settings"]["tone_histogram"] = hist
+            manifest.save()
+
     # Instantiate the engine based on the voice's declared engine type
     if voice_entry.engine == "openai":
         from .tts.api_engine import _resolve_openai_key
@@ -260,6 +300,10 @@ def cmd_build(args) -> None:
             speed=args.speed,
             model=voice_entry.params.get("model"),
         )
+    elif getattr(args, "expressive", False):
+        # Wrap Kokoro in the approximation layer for tone realization
+        from .tts.kokoro_approx import KokoroApproxEngine
+        engine = KokoroApproxEngine(params=voice_entry.params, speed=args.speed)
     else:
         engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
 
@@ -420,6 +464,39 @@ def cmd_review(args) -> None:
 
     print(f"  Chapters detected for: {manifest.source.get('title') or input_path.name}")
     print_section_table(sections, manifest.qa)
+
+    # --tones: print per-chapter tone map from the tone cache
+    if getattr(args, "tones", False):
+        tone_cache = work_dir / "tone_cache"
+        if not tone_cache.exists() or not any(tone_cache.iterdir()):
+            print("\n  No tone map found — run `vorpal build --expressive` first.")
+        else:
+            print("\n  Tone map (from last --expressive build):\n")
+            for s in sections:
+                if not s.include:
+                    continue
+                from .tone import _chapter_cache_key
+                from .segment import section_body as _sb
+                body = s.body  # EPUB/TXT: inline; PDF: would need pages (skip)
+                if not body:
+                    print(f"  [{s.title[:40]}] (PDF body not available in review)")
+                    continue
+                ck = _chapter_cache_key(body, manifest.data["settings"].get(
+                    "tone_model", "claude-haiku-4-5"))
+                cf = tone_cache / f"tone_{ck}.json"
+                if not cf.exists():
+                    print(f"  [{s.title[:40]}] no tone cache found")
+                    continue
+                import json as _json
+                tdata = _json.loads(cf.read_text())
+                tones = tdata.get("tones", [])
+                if not tones:
+                    print(f"  [{s.title[:40]}] (empty)")
+                    continue
+                from collections import Counter
+                ctr = Counter(tones)
+                parts = ", ".join(f"{t}={n}" for t, n in ctr.most_common())
+                print(f"  [{s.title[:40]}]: {parts}")
 
     out_flag = f" --output {args.output}" if args.output else ""
     if args.approve:
