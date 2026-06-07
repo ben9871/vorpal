@@ -72,8 +72,9 @@ detection and the QA score.
 **Accept when:** normalization unit suite green (numbers, romans, abbreviations,
 citations, dashes — table-driven tests); a full Firestone synth run reports
 `failed: 0`; editing one chapter title re-synthesizes only that chapter's intro chunk;
-listening spot-check of 3 random 2-minute segments finds no narrated junk and no
-mid-sentence prosody breaks.
+**(human)** listening spot-check of 3 random 2-minute segments finds no narrated junk
+and no mid-sentence prosody breaks. *(An autonomous agent completes everything else,
+then lists the pending listening check in the status doc.)*
 
 ## Phase 4 — Mastering & packaging *(sounds like a product)*
 
@@ -82,9 +83,11 @@ mid-sentence prosody breaks.
 - `.m4b` with chapters, metadata, embedded cover; `chapters_mp3/` side product;
   `report.md` QA summary.
 
-**Accept when:** full-length Firestone build peaks < 1 GB RSS; chapters within ±1 LU;
-markers land at chapter starts in a real player (VLC/BookPlayer); report lists every
-gate's result.
+**Accept when:** full-length Firestone build peaks < 1 GB RSS; chapters within ±1 LU
+(machine-checkable via ffmpeg loudnorm stats); **(human)** markers land at chapter
+starts in a real player (VLC/BookPlayer) — an agent can verify marker *timestamps*
+against chapter audio durations in the muxed file as the automated proxy; report
+lists every gate's result.
 
 ## Phase 5 — End-to-end hardening & release *(v1)*
 

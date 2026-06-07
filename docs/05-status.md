@@ -92,6 +92,9 @@ editing one chapter title re-synthesizes only that chapter's intro chunk;
 
 ## Environment facts you will want to remember
 
+(Agent onboarding incl. Linux/Docker setup lives in [`CLAUDE.md`](../CLAUDE.md);
+the notes below are the Windows dev-box specifics.)
+
 - **Use `venv311`** (Python 3.11, kokoro 0.9.4, CUDA torch → TTS runs on the RTX
   4050). **Do not use `.venv`** — it is Python 3.13 and kokoro caps at 3.12.
 - Run things as: `venv311\Scripts\vorpal.exe …` / `venv311\Scripts\python.exe -m pytest`
