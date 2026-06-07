@@ -5,7 +5,10 @@ PDF → audiobook converter, being rebuilt in phases. **Start by reading
 evidence, environment facts, and exactly what to build next. The full context
 chain is `docs/01-audit.md` (why) → `02-product-vision.md` (what, incl. the two
 narration contracts) → `03-architecture.md` (how) → `04-roadmap.md` (phases +
-acceptance criteria) → `05-status.md` (now).
+acceptance criteria) → `05-status.md` (now). `docs/07-ideation.md` holds the
+expressive-narration thinking (voices, tone system) — ideas graduate from
+there into the roadmap, not directly into code. The project stays 0.x — no
+version tags, no PyPI.
 
 ## Environment
 

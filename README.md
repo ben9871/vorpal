@@ -14,7 +14,8 @@ naive PDF→TTS pipe narrates at you.
 > 2. [Product vision & scope](docs/02-product-vision.md) — what we're building (voice cloning is dropped)
 > 3. [Target architecture](docs/03-architecture.md) — the 8-stage, manifest-driven design
 > 4. [Implementation roadmap](docs/04-roadmap.md) — 6 phases with acceptance criteria
-> 5. [**Status & handoff**](docs/05-status.md) — where we are, what's next (Phase 3), environment notes
+> 5. [**Status & handoff**](docs/05-status.md) — where we are, what's next, environment notes
+> 6. [Ideation: expressive narration](docs/07-ideation.md) — voices, the tone system, the north star
 
 ## Setup
 

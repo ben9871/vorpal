@@ -89,7 +89,12 @@ starts in a real player (VLC/BookPlayer) — an agent can verify marker *timesta
 against chapter audio durations in the muxed file as the automated proxy; report
 lists every gate's result.
 
-## Phase 5 — End-to-end hardening & release *(v1)*
+## Phase 5 — End-to-end hardening *(the "any PDF" milestone — no release)*
+
+*(Re-scoped 2026-06-07: no v1.0 tag, no PyPI — the project stays 0.x personal
+tooling for now. "v1" below means the quality bar, not a release event. The
+energy after this phase goes to expressiveness — see
+[07-ideation.md](07-ideation.md).)*
 
 - **Corpus sweep:** pull a diverse set of lawful real-world PDFs (public-domain
   scans from the Internet Archive, Project Gutenberg born-digital, etc. — see
@@ -102,7 +107,10 @@ lists every gate's result.
 - Duration-sanity and marker-count package gates; `--allow-gaps` escape hatch with
   audible markers.
 - README rewrite: install (Tesseract/ffmpeg), quickstart, review workflow, manifest
-  reference. Tag `v1.0`.
+  reference. (No version tag — stays 0.x.)
+- Mastering staleness cache (today every build re-masters all 8 h: cache chapter
+  AACs keyed by `(chapter_wav_hash, lufs, bitrate)`); `--mp3` opt-in for the side
+  product instead of always paying a second full encode.
 
 **Accept when:** fresh clone → `pip install -e .` → `vorpal build` succeeds on all
 three regression books on Windows, meeting every product-level criterion in

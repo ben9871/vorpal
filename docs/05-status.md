@@ -44,9 +44,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
   build: `1918 cached, 1 to synthesize` — exactly the one intro chunk; only
   chapter 9 reassembled; `failed: 0`.
 
-- **Listening spot-check:** **(human, pending)** — 3 random 2-minute segments of
-  `scratch\firestone_p3.m4b` must contain no narrated junk and no mid-sentence
-  prosody breaks. Cannot be self-verified.
+- **Listening spot-check:** ✅ verified by the user (2026-06-07) on the mastered
+  `scratch\firestone_p3.m4b` — no narrated junk, no mid-sentence prosody breaks.
+  **Phase 3 acceptance is fully closed.**
 
 ## What Phase 3 built
 
@@ -178,9 +178,9 @@ Regression set, all via `vorpal build … --stop-after segment`:
   (b) `report.md` shows all chapters PASS loudness gate, (c) M4B file size and
   peak RSS below 1 GB. Cannot be self-verified in this environment.
 
-- **Chapter markers in real player:** **(human, pending)** — open
-  `scratch/firestone_p4.m4b` in VLC or BookPlayer; confirm chapter jumps land
-  at chapter starts. Cannot be self-verified.
+- **Chapter markers in real player:** ✅ verified by the user (2026-06-07) —
+  chapter navigation in VLC lands at chapter starts on the mastered
+  `scratch/firestone_p3.m4b`.
 
 ## What Phase 4 built
 
