@@ -1,7 +1,7 @@
 """Unit tests for text repair (de-hyphenation, mojibake, reflow)."""
 
-from audiobooker.extract.pagemodel import Block, Page
-from audiobooker.segment.repair import (
+from vorpal.extract.pagemodel import Block, Page
+from vorpal.segment.repair import (
     RepairReport,
     count_mojibake,
     dehyphenate,

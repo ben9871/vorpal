@@ -9,8 +9,8 @@ import pytest
 
 fitz = pytest.importorskip("fitz")
 
-from audiobooker.extract.digital import extract_digital_page
-from audiobooker.segment import segment_pages
+from vorpal.extract.digital import extract_digital_page
+from vorpal.segment import segment_pages
 
 W, H = 595, 842
 BODY = (

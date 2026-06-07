@@ -1,7 +1,7 @@
 """Unit tests for cross-page boilerplate (header/footer/page-number) removal."""
 
-from audiobooker.extract.pagemodel import Block, Page
-from audiobooker.segment.boilerplate import remove_boilerplate
+from vorpal.extract.pagemodel import Block, Page
+from vorpal.segment.boilerplate import remove_boilerplate
 
 W, H = 600, 800
 TOP = 20       # well inside the 12% top band (96)

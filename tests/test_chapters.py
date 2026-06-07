@@ -1,9 +1,9 @@
 """Unit tests for the chapter cascade (outline → TOC → heuristics) and
 front/back-matter classification."""
 
-from audiobooker.extract.pagemodel import Block, Page
-from audiobooker.segment.chapters import Section, detect_chapters, section_body
-from audiobooker.segment.frontmatter import classify_title, find_back_matter_start
+from vorpal.extract.pagemodel import Block, Page
+from vorpal.segment.chapters import Section, detect_chapters, section_body
+from vorpal.segment.frontmatter import classify_title, find_back_matter_start
 
 W, H = 600, 800
 PARA = ("Sentence of ordinary body prose that the section carries forward. " * 8).strip()

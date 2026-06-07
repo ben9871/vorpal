@@ -3,7 +3,7 @@ setlocal
 
 echo.
 echo =====================================================
-echo   audiobooker - Windows Setup
+echo   vorpal - Windows Setup
 echo =====================================================
 echo.
 
@@ -40,7 +40,7 @@ if not exist venv311 (
 
 call venv311\Scripts\activate.bat
 
-echo Installing audiobooker (editable) and dependencies...
+echo Installing vorpal (editable) and dependencies...
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
@@ -66,6 +66,6 @@ if %errorlevel% neq 0 if not exist "C:\ffmpeg\bin\ffmpeg.exe" (
 echo.
 echo =====================================================
 echo   Setup complete.
-echo   Usage:  audiobook build book.pdf
+echo   Usage:  vorpal build book.pdf
 echo =====================================================
 pause

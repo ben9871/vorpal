@@ -1,20 +1,20 @@
 """Command-line interface.
 
 Usage:
-    audiobook build book.pdf --title "Book Title" --author "Author Name"
-    audiobook build book.pdf --voice bm_george
+    vorpal build book.pdf --title "Book Title" --author "Author Name"
+    vorpal build book.pdf --voice bm_george
 
     # Inspect / adjust detected chapters, then approve:
-    audiobook review book.pdf
-    audiobook review book.pdf --approve
+    vorpal review book.pdf
+    vorpal review book.pdf --approve
 
     # Page range (useful for testing):
-    audiobook build book.pdf --end-page 20 --output test_run
+    vorpal build book.pdf --end-page 20 --output test_run
 
     # Force redo a step:
-    audiobook build book.pdf --redo-ocr
-    audiobook build book.pdf --redo-segment
-    audiobook build book.pdf --redo-tts
+    vorpal build book.pdf --redo-ocr
+    vorpal build book.pdf --redo-segment
+    vorpal build book.pdf --redo-tts
 """
 
 import argparse
@@ -35,12 +35,12 @@ from .tts import KOKORO_VOICES, KokoroEngine
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="audiobook",
+        prog="vorpal",
         description="Convert a PDF to a navigable .m4b audiobook",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--version", action="version", version=f"audiobooker {__version__}")
+    parser.add_argument("--version", action="version", version=f"vorpal {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="Run the full PDF → .m4b pipeline")
@@ -122,7 +122,7 @@ def cmd_build(args) -> None:
     footnotes_path = work_dir / "footnotes.json"
 
     print("=" * 58)
-    print(f"  PDF -> Audiobook Pipeline  (audiobooker {__version__})")
+    print(f"  PDF -> Audiobook Pipeline  (vorpal {__version__})")
     print(f"  Input:  {pdf_path}")
     print(f"  Output: {output_stem}.m4b")
     print(f"  TTS:    Kokoro (voice: {args.voice}, speed: {args.speed})")
@@ -201,7 +201,7 @@ def cmd_build(args) -> None:
             print(f"\n  Chapter detection needs review.")
             print(f"  Edit chapters in: {manifest.path}")
             print(f"  (title / include / spoken_intro / start / end), then run:")
-            sys.exit(f"      audiobook review {args.pdf}{out_flag} --approve")
+            sys.exit(f"      vorpal review {args.pdf}{out_flag} --approve")
         manifest.data["stages"]["review"] = {"status": "auto-approved"}
         manifest.save()
         print(f"  Review auto-approved "
@@ -261,12 +261,12 @@ def cmd_review(args) -> None:
     work_dir = Path(f"{output_stem}_workdir")
     manifest_path = work_dir / "book.json"
     if not manifest_path.exists():
-        sys.exit(f"ERROR: No manifest at {manifest_path} — run `audiobook build` first.")
+        sys.exit(f"ERROR: No manifest at {manifest_path} — run `vorpal build` first.")
 
     manifest = Manifest.load_or_create(work_dir)
     sections = [Section.from_dict(d) for d in manifest.data.get("chapters", [])]
     if not sections:
-        sys.exit("ERROR: No chapters in the manifest — run `audiobook build` first.")
+        sys.exit("ERROR: No chapters in the manifest — run `vorpal build` first.")
 
     print(f"  Chapters detected for: {manifest.source.get('title') or pdf_path.name}")
     print_section_table(sections, manifest.qa)
@@ -275,13 +275,13 @@ def cmd_review(args) -> None:
     if args.approve:
         manifest.data["stages"]["review"] = {"status": "approved"}
         manifest.save()
-        print(f"\n  Approved. Run `audiobook build {args.pdf}{out_flag}` to continue.")
+        print(f"\n  Approved. Run `vorpal build {args.pdf}{out_flag}` to continue.")
     else:
         status = manifest.stage("review").get("status", "pending")
         print(f"\n  Review status: {status}")
         print(f"  To adjust: edit `chapters` in {manifest_path}")
         print(f"  (title / include / spoken_intro / start / end blocks), then:")
-        print(f"      audiobook review {args.pdf}{out_flag} --approve")
+        print(f"      vorpal review {args.pdf}{out_flag} --approve")
 
 
 def main(argv=None) -> None:

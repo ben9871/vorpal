@@ -1,6 +1,6 @@
 import pytest
 
-from audiobooker import binaries
+from vorpal import binaries
 
 
 def test_env_override_wins(monkeypatch, tmp_path):

@@ -1,7 +1,7 @@
 """Unit tests for footnote separation."""
 
-from audiobooker.extract.pagemodel import Block, Page
-from audiobooker.segment.footnotes import separate_footnotes
+from vorpal.extract.pagemodel import Block, Page
+from vorpal.segment.footnotes import separate_footnotes
 
 W, H = 600, 800
 

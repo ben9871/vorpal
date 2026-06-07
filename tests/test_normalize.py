@@ -6,7 +6,7 @@ every long paragraph into ".T.h.e. .d.o.g." (docs/01-audit.md §3).
 
 import re
 
-from audiobooker.normalize import split_into_chunks
+from vorpal.normalize import split_into_chunks
 
 SENTENCE = "The quick brown fox jumps over the lazy dog and keeps running. "
 

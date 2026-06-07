@@ -2,8 +2,8 @@ import pytest
 
 fitz = pytest.importorskip("fitz")
 
-from audiobooker.ingest import classify_page_text, ingest
-from audiobooker.manifest import Manifest
+from vorpal.ingest import classify_page_text, ingest
+from vorpal.manifest import Manifest
 
 PROSE = (
     "Socialist thinkers prior to Marx and Engels had been able to do no more "

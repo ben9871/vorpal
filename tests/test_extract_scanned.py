@@ -7,8 +7,8 @@ everywhere (they only need OpenCV + numpy).
 import numpy as np
 import pytest
 
-from audiobooker.binaries import find_tesseract
-from audiobooker.extract.scanned import (
+from vorpal.binaries import find_tesseract
+from vorpal.extract.scanned import (
     deskew,
     extract_scanned_page,
     ink_ratio,

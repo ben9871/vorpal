@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "audiobooker"
+name = "vorpal"
 version = "0.1.0"
 description = "Convert book PDFs into navigable .m4b audiobooks with TTS voice models"
 # <3.13 because kokoro>=0.8 (and its misaki g2p stack) caps at Python 3.12
@@ -24,10 +24,11 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-audiobook = "audiobooker.cli:main"
+vorpal = "vorpal.cli:main"
+audiobook = "vorpal.cli:main"   # legacy alias
 
 [tool.setuptools.packages.find]
-include = ["audiobooker*"]
+include = ["vorpal*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

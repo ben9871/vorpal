@@ -1,4 +1,4 @@
-from audiobooker.extract.quality import (
+from vorpal.extract.quality import (
     function_word_rate,
     page_score,
     text_quality,

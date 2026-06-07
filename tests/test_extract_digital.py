@@ -4,8 +4,8 @@ import pytest
 
 fitz = pytest.importorskip("fitz")
 
-from audiobooker.extract import extract_pages
-from audiobooker.extract.digital import extract_digital_page
+from vorpal.extract import extract_pages
+from vorpal.extract.digital import extract_digital_page
 
 BODY = (
     "Socialist thinkers prior to Marx and Engels had been able to do no more "
@@ -47,7 +47,7 @@ def test_digital_page_blocks_with_geometry_and_fonts(book_pdf):
 
 def test_extract_pages_digital_path_skips_ocr(book_pdf, monkeypatch):
     """Digital pages must never touch the scanned/OCR path."""
-    import audiobooker.extract as extract_mod
+    import vorpal.extract as extract_mod
 
     def boom(*a, **k):
         raise AssertionError("scanned path called for a digital page")

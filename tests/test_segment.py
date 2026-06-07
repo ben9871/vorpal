@@ -5,8 +5,8 @@ unit coverage for each sub-stage lives in test_boilerplate / test_footnotes /
 test_repair / test_chapters. This file checks they compose.
 """
 
-from audiobooker.extract.pagemodel import Block, Page
-from audiobooker.segment import Section, segment_pages
+from vorpal.extract.pagemodel import Block, Page
+from vorpal.segment import Section, segment_pages
 
 W, H = 600, 800
 PARA = ("Plain body prose, the kind a narrator should read aloud. " * 8).strip()

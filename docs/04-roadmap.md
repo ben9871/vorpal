@@ -12,7 +12,7 @@ PDF join the regression set in Phase 2.
 
 Restructure without changing behavior, and delete what's already decided against.
 
-- Create the `audiobooker/` package skeleton + `pyproject.toml` + `tests/`; move
+- Create the `vorpal/` package skeleton + `pyproject.toml` + `tests/`; move
   `pipeline.py`'s working logic into modules verbatim (extract/segment/normalize/synth/
   master boundaries), wire the existing CLI flags through `cli.py`.
 - **Remove the F5-TTS / voice-clone path entirely** (`--voice-ref`, `--ref-text`,
@@ -23,7 +23,7 @@ Restructure without changing behavior, and delete what's already decided against
 - Seed `tests/` with the first golden assets: a 10-page excerpt of the Firestone scan +
   its expected extraction output.
 
-**Accept when:** `audiobook build firestone.pdf --end-page 20` reproduces today's
+**Accept when:** `vorpal build firestone.pdf --end-page 20` reproduces today's
 behavior (bugs and all) through the new package layout; `pytest` runs; no F5/whisper code
 or deps remain.
 
@@ -46,7 +46,7 @@ detection and the QA score.
   separation; de-hyphenation; mojibake normalization; paragraph reflow.
 - Chapter cascade: outline → printed-TOC parse (with page-offset inference) → layout
   heuristics; validation gates; front/back-matter classification.
-- `audiobook review`: chapter table + manifest editing + selective downstream
+- `vorpal review`: chapter table + manifest editing + selective downstream
   invalidation.
 
 **Accept when (regression set):**
@@ -58,16 +58,22 @@ detection and the QA score.
 
 ## Phase 3 — Normalization & synthesis hardening *(where coherence is won)*
 
-- `normalize.py`: spoken-form normalization, `pysbd` segmentation, chunk packing with
-  pause metadata, **no-loss invariant** assertion, junk-lint gate.
+- `normalize.py`: spoken-form normalization, `pysbd` segmentation, **prosody-aware
+  chunk packing** (sentence-safe, paragraph-aligned, packed toward the engine's
+  context size, pause metadata — coherent narration is a chunking property before it
+  is an engine property), **no-loss invariant** assertion, junk-lint gate.
+- Chunk schema carries the `tone` field (default `null`/neutral) end-to-end from this
+  phase, so the post-v1 expressive layer needs no schema migration. Phase 3 does
+  **not** fill it — `tone.py` (LLM tagging) is post-v1.
 - `synth`: retry → split → abort failure policy (no silent drops), chunk cache keyed by
-  `(text_hash, engine, voice, speed)`, `spoken_intro` chapter announcements, synthesis
-  report.
+  `(text_hash, engine, voice, speed, tone)`, `spoken_intro` chapter announcements,
+  synthesis report. `TTSEngine.synthesize(text, tone=None)` — Kokoro ignores the hint.
 
 **Accept when:** normalization unit suite green (numbers, romans, abbreviations,
 citations, dashes — table-driven tests); a full Firestone synth run reports
 `failed: 0`; editing one chapter title re-synthesizes only that chapter's intro chunk;
-listening spot-check of 3 random 2-minute segments finds no narrated junk.
+listening spot-check of 3 random 2-minute segments finds no narrated junk and no
+mid-sentence prosody breaks.
 
 ## Phase 4 — Mastering & packaging *(sounds like a product)*
 
@@ -88,7 +94,7 @@ gate's result.
 - README rewrite: install (Tesseract/ffmpeg), quickstart, review workflow, manifest
   reference. Tag `v1.0`.
 
-**Accept when:** fresh clone → `pip install -e .` → `audiobook build` succeeds on all
+**Accept when:** fresh clone → `pip install -e .` → `vorpal build` succeeds on all
 three regression books on Windows, meeting every product-level criterion in
 [02-product-vision.md](02-product-vision.md).
 
@@ -98,14 +104,24 @@ three regression books on Windows, meeting every product-level criterion in
 
 In rough value order:
 
-1. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
-2. **Performance** — parallel page OCR (process pool), batched TTS on GPU.
-3. **More engines** — Piper (speed), API engines (quality) behind `TTSEngine`.
-4. **EPUB input** — second `extract` backend; segmentation gets structure for free.
-5. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
-   front-matter classification on weird books (kept optional: deterministic core,
-   model-assisted edges).
-6. Pronunciation lexicon (per-book overrides for names/terms).
+1. **Expressive narration (`tone.py`)** — the optional LLM pass that tags each
+   paragraph / n-sentence run with a tone from a small controlled vocabulary
+   (`neutral`, `somber`, `tense`, `wry`, `excited`, …). The chunk schema, engine
+   interface, and cache key already carry `tone` from Phase 3; this fills it.
+   Ships with: prompt + vocabulary spec, per-chapter tagging cache (an LLM pass must
+   not re-run on every build), a `report.md` tone histogram, and an `--expressive`
+   flag (off by default — the deterministic pipeline must never depend on a model).
+2. **Expressive / character-voice engines** — Piper (speed), API engines (quality),
+   and tone-capable or character-style voices (the north star's anime-girl narrator)
+   behind `TTSEngine.supported_tones`. Pairs with #1: tags without an engine that
+   acts on them are inert; an engine without tags is monotone.
+3. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
+4. **Performance** — parallel page OCR (process pool), batched TTS on GPU.
+5. **EPUB input** — second `extract` backend; segmentation gets structure for free.
+6. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
+   front-matter classification on weird books (same deterministic-core /
+   model-assisted-edges rule as #1).
+7. Pronunciation lexicon (per-book overrides for names/terms).
 
 ## Risks & mitigations
 

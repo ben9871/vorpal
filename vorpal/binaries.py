@@ -1,7 +1,7 @@
 """Discovery of external binaries (Tesseract, ffmpeg).
 
 Resolution order, per binary:
-  1. Environment variable override (AUDIOBOOKER_TESSERACT / AUDIOBOOKER_FFMPEG)
+  1. Environment variable override (VORPAL_TESSERACT / VORPAL_FFMPEG)
   2. PATH lookup via shutil.which
   3. Known platform-specific install locations
 
@@ -12,8 +12,8 @@ guidance so the user gets one clear message instead of a stack trace.
 import os
 import shutil
 
-TESSERACT_ENV = "AUDIOBOOKER_TESSERACT"
-FFMPEG_ENV = "AUDIOBOOKER_FFMPEG"
+TESSERACT_ENV = "VORPAL_TESSERACT"
+FFMPEG_ENV = "VORPAL_FFMPEG"
 
 _TESSERACT_FALLBACKS = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",

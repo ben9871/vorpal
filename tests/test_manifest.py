@@ -1,4 +1,4 @@
-from audiobooker.manifest import Manifest, hash_parts, sha256_file
+from vorpal.manifest import Manifest, hash_parts, sha256_file
 
 
 def test_hash_parts_stable_and_sensitive():

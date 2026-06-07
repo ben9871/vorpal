@@ -3,6 +3,13 @@
 *Last updated: 2026-06-07.* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
+> **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
+> `audiobook` remains a legacy alias console script. Env overrides are now
+> `VORPAL_TESSERACT`/`VORPAL_FFMPEG`. Product goals grew two narration-side
+> contracts — prosody-coherent TTS chunking (Phase 3) and per-paragraph `tone`
+> tags via an optional LLM pass (post-v1, schema carried from Phase 3) — see the
+> updated [02-product-vision.md](02-product-vision.md) §"second contract".
+
 ## Where we are
 
 | Phase | State | Evidence |
@@ -14,14 +21,14 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 4 — mastering & packaging | pending | — |
 | Phase 5 — end-to-end hardening, v1 | pending | — |
 
-Working state: `audiobook build book.pdf` runs end-to-end (ingest → extract v2 →
-**segment v2** → review gate → Kokoro TTS → M4B). `audiobook review` prints the
+Working state: `vorpal build book.pdf` runs end-to-end (ingest → extract v2 →
+**segment v2** → review gate → Kokoro TTS → M4B). `vorpal review` prints the
 chapter table and `--approve` unlocks a paused build. Synthesis is still the
 Phase-0 warn-and-skip loop — that is exactly what Phase 3 replaces.
 
 ## Phase 2 acceptance results (for reference)
 
-Regression set, all via `audiobook build … --stop-after segment`:
+Regression set, all via `vorpal build … --stop-after segment`:
 
 - **Firestone scan** → cascade rung **outline**, exactly **11 narrated chapters**
   (10 + conclusion), `Contents`/front matter/back matter classified & excluded,
@@ -58,7 +65,7 @@ Regression set, all via `audiobook build … --stop-after segment`:
   `book.json` chapters take effect without re-segmenting.
 - Review gate: build auto-approves only when every narrated section is from
   outline/TOC with no flags; otherwise it prints the table and exits until
-  `audiobook review … --approve`.
+  `vorpal review … --approve`.
 
 ## Phase 3 — what to build next
 
@@ -66,14 +73,18 @@ From [04-roadmap.md](04-roadmap.md) and [03-architecture.md](03-architecture.md)
 
 1. `normalize.py` rewrite — spoken-form normalization (numbers, romans,
    abbreviations, citations, dashes), `pysbd` sentence segmentation (add dep),
-   chunk packing with pause metadata, **no-loss invariant**, junk-lint gate
-   (catches the `For that rare diagram freak | 3-D REVOLUTION` tail residue on
-   Firestone p126 and OCR junk like `cven`/`¢.g.`).
-2. `synth.py` rewrite — retry → split → abort policy (replace warn-and-skip),
-   chunk cache keyed `(text_hash, engine, voice, speed)` (today chunk reuse is
-   index-based — **stale after any review edit**, the known gap), synthesis report.
+   **prosody-aware chunk packing** (sentence-safe, paragraph-aligned, packed
+   toward the engine's context size, pause metadata), **no-loss invariant**,
+   junk-lint gate (catches the `For that rare diagram freak | 3-D REVOLUTION`
+   tail residue on Firestone p126 and OCR junk like `cven`/`¢.g.`).
+2. Chunk schema carries a `tone` field (default null) from day one — the post-v1
+   LLM tone-tagging pass fills it, expressive engines act on it, no migration later.
+3. `synth.py` rewrite — retry → split → abort policy (replace warn-and-skip),
+   chunk cache keyed `(text_hash, engine, voice, speed, tone)` (today chunk reuse
+   is index-based — **stale after any review edit**, the known gap), synthesis
+   report. `TTSEngine.synthesize(text, tone=None)`; Kokoro ignores the hint.
    `spoken_intro` is already in the manifest and honored by synth.
-3. Normalization unit suite is table-driven and can be written first (pure functions).
+4. Normalization unit suite is table-driven and can be written first (pure functions).
 
 **Acceptance:** normalization suite green; full Firestone synth `failed: 0`;
 editing one chapter title re-synthesizes only that chapter's intro chunk;
@@ -83,10 +94,10 @@ editing one chapter title re-synthesizes only that chapter's intro chunk;
 
 - **Use `venv311`** (Python 3.11, kokoro 0.9.4, CUDA torch → TTS runs on the RTX
   4050). **Do not use `.venv`** — it is Python 3.13 and kokoro caps at 3.12.
-- Run things as: `venv311\Scripts\audiobook.exe …` / `venv311\Scripts\python.exe -m pytest`
+- Run things as: `venv311\Scripts\vorpal.exe …` / `venv311\Scripts\python.exe -m pytest`
 - `rapidfuzz` added to deps in Phase 2 (boilerplate clustering + title anchoring).
 - Tesseract: `C:\Program Files\Tesseract-OCR\` · ffmpeg: `C:\ffmpeg\bin\` (neither
-  on PATH; `binaries.py` finds them; env overrides `AUDIOBOOKER_TESSERACT`/`AUDIOBOOKER_FFMPEG`).
+  on PATH; `binaries.py` finds them; env overrides `VORPAL_TESSERACT`/`VORPAL_FFMPEG`).
 - The console is **cp932** — `cli.py` reconfigures stdout to UTF-8; scratch scripts
   need `$env:PYTHONIOENCODING='utf-8'`.
 - `scratch/` is gitignored experiment space. Useful artifacts now:
@@ -102,7 +113,7 @@ editing one chapter title re-synthesizes only that chapter's intro chunk;
 
 ```
 venv311\Scripts\python.exe -m pytest -q          # should be 78 passed
-venv311\Scripts\audiobook.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p2 --stop-after segment
+venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p2 --stop-after segment
                                                   # everything "fresh", 11-chapter table
 ```
 
