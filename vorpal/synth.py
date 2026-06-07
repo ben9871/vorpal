@@ -24,6 +24,25 @@ from .normalize import (
 from .tts.base import TTSEngine
 
 
+def estimate_synth_cost(chapters: list, engine) -> tuple:
+    """Estimate synthesis cost before committing to an API build.
+
+    Returns (total_chars: int, estimated_usd: float).
+
+    total_chars counts characters in spoken_intro + body for every narrated
+    chapter.  For local engines (Kokoro, mock) cost_per_1k_chars is 0.0.
+    """
+    cost_per_1k = getattr(engine, "cost_per_1k_chars", 0.0)
+    total = 0
+    for ch in chapters:
+        if ch.get("skip"):
+            continue
+        total += len(ch.get("spoken_intro") or "")
+        total += len(ch.get("body") or "")
+    estimated_usd = total / 1000.0 * cost_per_1k
+    return total, estimated_usd
+
+
 @dataclass
 class SynthReport:
     """Synthesis run statistics, returned alongside chapter_results."""

@@ -32,8 +32,8 @@ from .manifest import Manifest, hash_parts
 from .binaries import MissingBinaryError
 from .master import compile_m4b
 from .segment import Section, section_body, segment_pages
-from .synth import safe_filename, tts_all_chapters
-from .tts import KOKORO_VOICES, KokoroEngine, VOICE_REGISTRY, resolve_voice, list_voices
+from .synth import safe_filename, tts_all_chapters, estimate_synth_cost
+from .tts import KOKORO_VOICES, KokoroEngine, APIEngine, VOICE_REGISTRY, resolve_voice, list_voices
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,6 +72,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Insert audible beep markers for failed chunks instead of aborting")
     build.add_argument("--stop-after", choices=["extract", "segment"], default=None,
                        help="Stop the build after the named stage (inspection runs)")
+    build.add_argument("--max-cost", type=float, default=None, metavar="USD",
+                       help="Abort before synthesis if estimated API cost exceeds this "
+                            "amount in USD (e.g. --max-cost 5.00); ignored for local engines")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -244,7 +247,34 @@ def cmd_build(args) -> None:
     manifest.data["settings"]["voice_params"] = voice_entry.params
     manifest.save()
 
-    engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
+    # Instantiate the engine based on the voice's declared engine type
+    if voice_entry.engine == "openai":
+        from .tts.api_engine import _resolve_openai_key
+        if not _resolve_openai_key():
+            sys.exit(
+                f"ERROR: Voice '{voice_entry.id}' requires VORPAL_OPENAI_KEY "
+                f"— see CLAUDE.md §Credentials"
+            )
+        engine = APIEngine(
+            voice=voice_entry.params.get("voice", "alloy"),
+            speed=args.speed,
+            model=voice_entry.params.get("model"),
+        )
+    else:
+        engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
+
+    # Pre-synthesis cost estimate (aborts if --max-cost exceeded)
+    total_chars, estimated_usd = estimate_synth_cost(chapters, engine)
+    cost_per_1k = getattr(engine, "cost_per_1k_chars", 0.0)
+    if cost_per_1k > 0:
+        print(f"\n  Cost estimate: {total_chars:,} chars × ${cost_per_1k:.4f}/1k "
+              f"= ${estimated_usd:.2f}")
+        if args.max_cost is not None and estimated_usd > args.max_cost:
+            sys.exit(
+                f"ERROR: Estimated cost ${estimated_usd:.2f} exceeds "
+                f"--max-cost ${args.max_cost:.2f}. "
+                f"Reduce scope (--end-page) or raise the budget."
+            )
     chapter_results, synth_report = tts_all_chapters(
         chapters, audio_dir, chapters_dir, engine,
         allow_gaps=getattr(args, "allow_gaps", False),

@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 6 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 7 complete — credential gate).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -20,175 +20,179 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 3 — normalization & synthesis hardening | ✅ done | commit `1e935f3` |
 | Phase 4 — mastering & packaging | ✅ done | commit Phase 4 |
 | Phase 5 — multi-format input & end-to-end hardening | ✅ done | commit `1c460a8` |
-| **Arc 2: Phase 6 — voice suite v1 (registry, blends, audition)** | ✅ done | this commit |
-| Arc 2: Phase 7 — first tone-capable engine (API, cost-guarded) | queued | roadmap |
+| Phase 6 — voice suite v1 (registry, blends, audition) | ✅ done | commit `a06372f` |
+| **Arc 2: Phase 7 — first tone-capable engine (credential gate)** | ✅ done (pending live acceptance) | this commit |
 | Arc 2: Phase 8 — tone tagging + effectiveness gates (`--expressive`) | queued | roadmap |
 | Arc 2: Phase 9 — in-house voices (spike-gated) | queued | roadmap |
 
-## Phase 6 acceptance results
+## Phase 7 acceptance results
 
-- **230 tests green** (205 before Phase 6). 25 new tests in `test_voices.py`:
-  registry shape (count, blend count, field completeness, weight positivity),
-  `resolve_voice` / `list_voices`, `_params_cache_key` (single vs blend, determinism,
-  order-independence, weight-edit invalidation, speed exclusion), `KokoroEngine`
-  params-based construction, `voice_cache_key` property, synth `_cache_key`
-  integration (blend hash in key, no `None` for blend engines).
+- **261 tests green** (230 before Phase 7). 31 new tests in `test_phase7.py`:
+  MockEngine synthesis, tone acoustic delta, determinism, speed/duration, fail_on
+  trigger, cost estimation (free/paid/skip/intro/empty), APIEngine structure
+  (supported tones, cost positive, tone instructions complete), credential
+  resolution (VORPAL_OPENAI_KEY preferred over OPENAI_API_KEY, missing → None),
+  no-key raises correctly, cache-key integration (tone distinguishes chunks),
+  registry has OpenAI voices, WAV decoder roundtrip.
 
-- **Registry:** 11 narrators — 8 Kokoro single voices + 3 curated blends.
-  ≥ 6 voices and ≥ 2 blends: ✅
+- **MockEngine:** ✅ — deterministic, tone-aware (different tones → distinct sine
+  frequencies → acoustic delta testable without GPU), `fail_on` trigger for
+  retry/abort policy tests, `cost_per_1k_chars = 0.0`.
 
-- **`vorpal voices` subcommand:** ✅ — lists suite as a formatted table with
-  id, display name, type (single/blend), description; shows usage hints;
-  `--sample` flag renders audition WAVs into `voices_preview/`.
+- **APIEngine:** ✅ — OpenAI TTS adapter (`gpt-4o-mini-tts` for tones, `tts-1`
+  for neutral), instruction strings for all declared tones, WAV response decoder,
+  `cost_per_1k_chars = 0.015` ($15/1M chars), `VORPAL_OPENAI_KEY` credential
+  resolution (never bare `ANTHROPIC_API_KEY`).
 
-- **`--voice <id>` registry validation:** ✅ — any registry id accepted
-  (including blend ids); unknown ids print a clear error with the available
-  list and pointer to `vorpal voices`.
+- **Cost machinery:** ✅ — `estimate_synth_cost(chapters, engine)` counts chars
+  × cost per 1k; `--max-cost <USD>` flag aborts before synthesis if estimate
+  exceeds budget; estimate printed to stdout for API builds.
 
-- **Blend cache-key invalidation:** ✅ — `KokoroEngine.voice_cache_key`
-  returns a `blend_<sha256[:16]>` string for blend params; editing blend
-  weights produces a different key, invalidating exactly those cached chunks
-  and leaving other voices untouched.
+- **Tone cache-key isolation:** ✅ — chunk cache key carries `tone` component;
+  neutral and somber chunks have distinct cache keys → tone change re-synthesizes
+  only the affected chunks.
 
-- **Manifest stores resolved params:** ✅ — `manifest.data["settings"]`
-  gains `voice_id` (e.g. `"blend_warm_bright"`) and `voice_params`
-  (e.g. `{"blend": {"af_heart": 0.65, "af_nova": 0.35}}`), so the build is
-  reproducible from the manifest alone.
+- **OpenAI voices in registry:** ✅ — 3 OpenAI voice entries (`oa_alloy`,
+  `oa_echo`, `oa_nova`); registry grows to 14 narrators total. Voice dispatch in
+  `cli.py` now checks `voice_entry.engine` and instantiates `APIEngine` or
+  `KokoroEngine` accordingly; OpenAI voices abort with a clear error when
+  `VORPAL_OPENAI_KEY` is absent.
 
-- **Single-voice backwards compatibility:** ✅ — `KokoroEngine(voice="af_heart")`
-  (legacy form) still works; `voice_cache_key` returns the voice name string
-  as before, so all existing cached audio remains valid.
+### (blocked) live acceptance items
+
+The following Phase 7 items require a live OpenAI API key and cannot be
+self-verified in the container:
+
+- **(blocked: needs VORPAL_OPENAI_KEY)** 1-chapter Firestone build through
+  APIEngine completes with `failed: 0` and a printed cost line matching the
+  estimate (±20 %).
+- **(blocked: needs VORPAL_OPENAI_KEY)** Manual-tone chapter (`somber`) produces
+  audio measurably distinct from its neutral build (f0/energy/rate acoustic delta).
+- **(blocked: needs VORPAL_OPENAI_KEY)** Network-failure mid-build aborts loudly
+  (tested by pulling network) with a resumable chunk cache.
+
+These items are marked **(blocked)** per the Phase 7 credential-gate rule.
+The phase is "done (pending live acceptance)" — Phase 8 is not blocked.
 
 ### (human) acceptance items
 
-- **(human)** Audition pass: render `voices_preview/` on the Windows GPU box
-  (`vorpal voices --sample`) and pick favourite single + blend narrators.
-- **(human)** Full-book build with a blend voice has not been run in container
-  (Kokoro unavailable on CPU-only torch build).
+- **(human)** Audition pass: render `voices_preview/` on the GPU box and pick
+  favourite Kokoro narrators (from Phase 6, still pending).
+- **(human)** Full-book blend build not run in container.
 
-## What Phase 6 built
+## What Phase 7 built
 
-### `tts/voices.py` (new)
+### `tts/mock_engine.py` (new)
 
-- `VoiceEntry` dataclass: `{id, display_name, engine, params, description}`
-- `VOICE_REGISTRY` — 11 curated entries:
-  - 8 single Kokoro voices (`af_heart`, `af_nova`, `af_sky`, `am_echo`,
-    `am_michael`, `am_fenrir`, `bf_emma`, `bm_george`)
-  - 3 blends (`blend_warm_bright`, `blend_deep_steady`, `blend_transatlantic`)
-- `_params_cache_key(params)` — stable cache-key string:
-  single voice → voice name; blend → `blend_<sha256[:16]>` of sorted blend
-  JSON (speed excluded — captured separately in the chunk-cache key formula)
-- `resolve_voice(id)` → `VoiceEntry | None`
-- `list_voices()` → `list[VoiceEntry]`
+- `MockEngine(voice, speed, fail_on)` — deterministic mock TTS, no GPU/model
+- `synthesize(text, tone)` returns float32 array:
+  - `None`/`"neutral"` → silence (zeros); other tones → sine wave at tone-specific
+    frequency (110/220/330/440 Hz → A2/A3/E4/A4)
+- `fail_on`: if set, raises `RuntimeError` when text contains that string —
+  drives retry/abort policy in tests
+- `cost_per_1k_chars = 0.0` (local/free)
+- `voice_cache_key` property returns `self.voice`
 
-### `tts/kokoro_engine.py` (updated)
+### `tts/api_engine.py` (new)
 
-- `__init__` gains `params: Optional[dict]` — accepts registry VoiceEntry params
-  directly; `speed` arg always overrides (CLI `--speed` wins)
-- `voice_cache_key` property — delegates to `_params_cache_key(self._params)`
-- `_get_voice_arg()` — returns voice name string for single voices; for blends,
-  loads each embedding via `pipeline.load_voice()`, computes a L1-normalized
-  weighted sum, caches the result tensor, returns it
-- `synthesize()` updated to call `_get_voice_arg()` instead of `self.voice`
-- Legacy `KokoroEngine(voice="af_heart")` call still works
-
-### `tts/__init__.py` (updated)
-
-- Exports `VoiceEntry`, `VOICE_REGISTRY`, `resolve_voice`, `list_voices`
+- `APIEngine(voice, speed, model)` — OpenAI TTS via `requests`
+- `_resolve_openai_key()` → `VORPAL_OPENAI_KEY` ∥ `OPENAI_API_KEY` (never
+  reads bare `ANTHROPIC_API_KEY` — would hijack agent subscription)
+- `synthesize(text, tone)`: selects model (`gpt-4o-mini-tts` when tone active;
+  `tts-1` otherwise), builds instruction string from `_TONE_INSTRUCTIONS` dict,
+  POSTs to `https://api.openai.com/v1/audio/speech`, decodes WAV response
+- `_wav_bytes_to_array(bytes)` — stdlib-only WAV decoder (PCM int16/float32,
+  mono/stereo)
+- Raises `RuntimeError` if key missing or API returns non-200
+- `cost_per_1k_chars = 0.015` ($15/1M chars)
 
 ### `synth.py` (updated)
 
-- `_cache_key()` uses `engine.voice_cache_key` when available (falls back to
-  `engine.voice` for engines without the property) — blend engines produce
-  `blend_<hash>` cache key prefixes, not `None`
+- `estimate_synth_cost(chapters, engine)` → `(total_chars, estimated_usd)`:
+  counts spoken_intro + body chars for non-skipped chapters; uses
+  `engine.cost_per_1k_chars`
+
+### `tts/voices.py` (updated)
+
+- 3 OpenAI voice entries added: `oa_alloy`, `oa_echo`, `oa_nova`; total 14
 
 ### `cli.py` (updated)
 
-- `--voice` arg: removed `choices=KOKORO_VOICES` restriction; validates against
-  `VOICE_REGISTRY` after file existence check; prints registry id list + pointer
-  to `vorpal voices` on unknown id
-- Header print shows `voice.display_name (id, speed: N)` instead of just the id
-- Engine constructed as `KokoroEngine(params=voice_entry.params, speed=args.speed)`
-- `manifest.data["settings"]["voice_id"]` and `["voice_params"]` written before TTS
-- `voices` subcommand added (parser + `cmd_voices()` handler)
-- `_render_voice_samples()` — renders short audition WAVs via `KokoroEngine.synthesize()`
-- `main()` dispatches `"voices"` command
+- `--max-cost USD` flag: aborts before synthesis if cost estimate exceeds budget
+- Engine dispatch: `voice_entry.engine == "openai"` → `APIEngine`; else
+  `KokoroEngine` (avoids importing APIEngine at startup)
+- OpenAI key check happens before engine construction
+- Cost estimate printed + checked against `--max-cost` before TTS stage
 
-### `README.md` (updated)
+### `pyproject.toml` (updated)
 
-- "Voices" section with suite table (all 11 narrators, types, descriptions)
-- `vorpal voices` command reference
-- `--voice` help text updated from hard-coded list to registry pointer
-- `tts/voices.py` added to project layout
+- `[api]` optional extra: `pip install -e .[api]` installs `requests>=2.28`
 
-## What Phase 5 built (summary — see previous status doc for full details)
+## What Phase 6 built (summary — see previous status doc for full details)
 
-- EPUB/TXT multi-format input (stdlib-only parsers, no AGPL deps)
-- Mastering staleness cache (per-chapter M4A sidecar keyed by wav SHA + LUFS + bitrate)
-- Duration-sanity / chapter-count gate using ffprobe
-- 205 tests green (156 → 205)
+- `tts/voices.py`: 11-entry voice registry (8 Kokoro singles + 3 blends)
+- `KokoroEngine` blend support (weighted tensor mix, recipe-based cache key)
+- `vorpal voices` subcommand + `--sample` audition rendering
+- `--voice <id>` validates against registry; manifest stores resolved params
+- 230 tests green (205 → 230)
 
-## What Phase 4 built (summary)
+## What to build next (Phase 8)
 
-- Per-chapter loudness normalization (two-pass loudnorm), ffmpeg concat-demuxer
-  M4B assembly, chapter markers, cover art, MP3 side product, `report.md`.
-- Constant-memory (65.9 MB peak RSS on Firestone). Full Firestone mastering:
-  11/11 chapters PASS ±1 LU gate.
+From [04-roadmap.md](04-roadmap.md) Arc 2 Phase 8 — tone tagging + effectiveness:
 
-## What to build next (Phase 7)
+**No-key path: use the Kokoro approximation layer (speed/pause/blend shifts)
+as the tone-capable engine.** `VORPAL_ANTHROPIC_KEY` is provisioned (CLAUDE.md).
 
-From [04-roadmap.md](04-roadmap.md) Arc 2 Phase 7 — first tone-capable API engine:
+1. `tone.py` — LLM paragraph-level tone tagging:
+   - Vocabulary: ≤ 8 tags (`somber`, `tense`, `warm`, `wry`, `neutral` + others
+     from ideation §2a)
+   - Context windows for coherence, smoothing/hysteresis (min 2–3 para runs,
+     isolated spikes → neutral), confidence gate
+   - Cache: `(chapter_text_hash, model, prompt_version)` → never re-tag
+   - Batches API (`claude-haiku-4-5`) for cost efficiency
+   - `vorpal review --tones` prints per-chapter tone map for editing
 
-**Credential gate applies: no TTS-provider key (OpenAI/Azure) in the container.**
-The Phase 7 rule: wire a mock API engine with recorded-response tests; mark all
-live-synthesis items **(blocked: needs TTS provider key)** — never simulate a pass.
+2. Kokoro approximation layer — tone realization without API key:
+   - `KokoroApproxEngine` wraps KokoroEngine with per-tone speed/pause adjustments
+   - `somber` → speed 0.88, longer paragraph pauses
+   - `tense` → speed 1.1, shorter pauses
+   - `warm` → speed 0.95
+   - `wry` → speed 1.0 (default), emphasis hints via punctuation
 
-1. `tts/api_engine.py` — `APIEngine(TTSEngine)` calling an HTTP endpoint
-   (OpenAI TTS or compatible); `supported_tones` declares the tones it acts on
-2. Mock engine (`tts/mock_engine.py`) — returns deterministic audio for any
-   text, based on recorded stub responses; used in all tests
-3. Cost guard: `--max-cost` flag; token estimator; abort before synthesis if
-   estimated cost exceeds budget
-4. `engine` field in manifest; multi-engine builds go to separate worktirs
+3. Effectiveness gate (from ideation §2d):
+   - (a) Acoustic-delta check: non-neutral tags must produce statistically distinct
+     audio from neutral
+   - (b) A/B kit: paired 1-minute clips emitted by `--expressive`
 
-Accept when: mock engine tests green; cost guard enforces limit; real synth with
-a valid key produces audio of correct duration; **(blocked)** all live-synthesis
-acceptance items listed honestly.
+4. Everything behind `--expressive` flag; deterministic no-tone build byte-identical
+   to Phase 7 output
 
-## Environment facts you will want to remember
+Accept when: tagging Firestone twice is a 100 % cache hit; neutral fraction ≳ 60 %;
+acoustic-delta gate passes; **(human)** A/B kit verdict.
 
-(Agent onboarding incl. Linux/Docker setup lives in [`CLAUDE.md`](../CLAUDE.md);
-the notes below are the Windows dev-box specifics.)
+## Environment facts
 
-- **Use `venv311`** (Python 3.11, kokoro 0.9.4, CUDA torch → TTS runs on the RTX
-  4050). **Do not use `.venv`** — it is Python 3.13 and kokoro caps at 3.12.
-- Run things as: `venv311\Scripts\vorpal.exe …` / `venv311\Scripts\python.exe -m pytest`
-- `rapidfuzz` added to deps in Phase 2 (boilerplate clustering + title anchoring).
-- `pysbd` added to deps in Phase 3 (sentence segmentation).
-- Tesseract: `C:\Program Files\Tesseract-OCR\` · ffmpeg: `C:\ffmpeg\bin\` (neither
-  on PATH; `binaries.py` finds them; env overrides `VORPAL_TESSERACT`/`VORPAL_FFMPEG`).
-- The console is **cp932** — `cli.py` reconfigures stdout to UTF-8; scratch scripts
-  need `$env:PYTHONIOENCODING='utf-8'`.
-- `scratch/` is gitignored experiment space.
-- The v0 script is preserved at `miscellaneous/pipeline_v0_reference.py`.
-- The Firestone scan is **two-page spreads** (one PDF page = two printed pages,
-  landscape ~593×510). Anything page-geometry-related must think per *column*.
+(Agent onboarding incl. Linux/Docker setup lives in [`CLAUDE.md`](../CLAUDE.md))
+
+- **Use `venv311`** (Python 3.11, kokoro 0.9.4, CUDA torch).
+- `VORPAL_ANTHROPIC_KEY` provisioned in container (for tone tagging — Phase 8).
+- `VORPAL_OPENAI_KEY` NOT provisioned — Phase 7 live acceptance blocked.
+- `rapidfuzz`, `pysbd` added in Phases 2–3; `requests` in system path.
+- Firestone: two-page spreads (one PDF page = two printed pages).
 
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 230 passed
-vorpal voices                        # lists 11 narrators (8 single + 3 blend)
+python -m pytest -q                  # should be 261 passed
 
-# Verify registry-aware --voice flag:
-vorpal build scratch/outline.pdf --voice blend_warm_bright --stop-after segment
+# Verify Phase 7 additions:
+vorpal voices                        # should show 14 narrators (11 kokoro + 3 openai)
 
-# Full regression (PDF structure, no TTS):
-vorpal build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf \
-    --output scratch\firestone_p6 --stop-after segment
+# Cost estimate check (no key needed — just the estimate):
+# (run against a real EPUB to get chapters with bodies)
 
-# GPU host: audition all voices
-vorpal voices --sample               # → voices_preview/*.wav
+# Phase 8 starting point:
+# vorpal build book.epub --expressive  (--expressive flag not yet wired)
 ```
 
-Then start Phase 7: mock API engine, cost guard, tone-capable synthesis.
+Then start Phase 8: `tone.py` (LLM tagger + Kokoro approximation), `--expressive` flag.

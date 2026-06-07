@@ -27,6 +27,9 @@ dev = ["pytest>=8.0"]
 # depends on a model. Baked into the vorpal-box image; on the host:
 # pip install -e .[llm]
 llm = ["anthropic>=0.40"]
+# API-engine features (OpenAI TTS adapter, Phase 7):
+# pip install -e .[api]
+api = ["requests>=2.28"]
 
 [project.scripts]
 vorpal = "vorpal.cli:main"

@@ -127,6 +127,29 @@ VOICE_REGISTRY: dict = {
         params={"blend": {"af_heart": 0.5, "bf_emma": 0.5}},
         description="Equal blend of American Heart and British Emma",
     ),
+
+    # ── OpenAI TTS voices (via APIEngine — needs VORPAL_OPENAI_KEY) ───────
+    "oa_alloy": VoiceEntry(
+        id="oa_alloy",
+        display_name="Alloy",
+        engine="openai",
+        params={"voice": "alloy"},
+        description="Neutral, balanced — OpenAI TTS (requires VORPAL_OPENAI_KEY)",
+    ),
+    "oa_echo": VoiceEntry(
+        id="oa_echo",
+        display_name="Echo",
+        engine="openai",
+        params={"voice": "echo"},
+        description="Resonant male — OpenAI TTS (requires VORPAL_OPENAI_KEY)",
+    ),
+    "oa_nova": VoiceEntry(
+        id="oa_nova",
+        display_name="Nova (OpenAI)",
+        engine="openai",
+        params={"voice": "nova"},
+        description="Clear female — OpenAI TTS (requires VORPAL_OPENAI_KEY)",
+    ),
 }
 
 
