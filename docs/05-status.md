@@ -166,7 +166,26 @@ From [04-roadmap.md](04-roadmap.md):
 
 Acceptance: full Firestone build peaks < 1 GB RSS; chapters within ±1 LU of target
 LUFS (machine-checkable); **(human)** chapter markers land at chapter starts in a
-real player.
+real player (automated proxy: verify marker timestamps against chapter durations
+in the muxed file).
+
+Notes from the Phase 3 acceptance runs (operational, not in the roadmap):
+
+- `scratch/firestone_p3_workdir/` holds a **fully populated chunk cache (1,919
+  WAVs) and 11 chapter WAVs** — mastering iterations can run against it with
+  zero re-synthesis. Mastering must consume existing chapter WAVs / chunk cache;
+  a re-master must never trigger re-synthesis (cache keys don't include
+  mastering settings — keep it that way; loudness is a post-synth transform).
+- Today's master.py measured ≈ 2.9 GB resident on the 8.3 h book (496 min ×
+  24 kHz mono float32) — the audit §4 number is real; concat-demuxer is the fix.
+- **Cover art gap:** ingest does not yet render/store the page-1 cover the
+  architecture promises — add the render (ingest or package step) before
+  embedding.
+- `report.md` shouldn't invent new QA — fold what already exists: manifest.qa
+  (extraction + segment stats, flagged pages), the junk-lint warnings, and the
+  synthesis report counts, which today live only in stdout.
+- Cosmetic: the synth progress estimator drifts ("Book: 104%") — its upfront
+  chunk-count estimate disagrees with actual chunking; fix while in the area.
 
 ## Environment facts you will want to remember
 
