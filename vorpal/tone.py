@@ -4,7 +4,15 @@ Tags each paragraph in a chapter with a tone from the ≤ 8-tag vocabulary.
 Results are cached per (chapter_text_hash, model, prompt_version) so a book
 is tagged once, ever, unless the text or prompt version changes.
 
-Credential: VORPAL_ANTHROPIC_KEY (see CLAUDE.md §Credentials).
+Two backends (see CLAUDE.md §Credentials):
+  - "cli"  (default) — shells out to `claude -p`, which authenticates with the
+    Claude Code subscription token (CLAUDE_CODE_OAUTH_TOKEN). Draws on the
+    subscription you already pay for; needs no separate API balance. This is
+    the default because the typical operator has subscription headroom but an
+    empty pay-as-you-go API ledger.
+  - "api"  (opt-in: --tone-backend api) — direct Anthropic SDK with
+    VORPAL_ANTHROPIC_KEY. Pay-as-you-go; unlocks the Batches API discount.
+    Use when you'd rather bill tagging to the API console than the subscription.
 Everything behind --expressive; the deterministic no-tone build is untouched.
 """
 
@@ -12,6 +20,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +33,7 @@ TONE_VOCAB = frozenset([
 
 PROMPT_VERSION = "v1"
 DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_BACKEND = "cli"     # "cli" = subscription via `claude -p`; "api" = pay-as-you-go SDK
 MIN_RUN_LENGTH = 2          # isolated non-neutral spans < this → neutral
 CONFIDENCE_THRESHOLD = 0.70  # below this, tag reverts to neutral
 
@@ -134,32 +145,95 @@ def _parse_llm_response(raw: str, n_paragraphs: int) -> list:
     return result[:n_paragraphs]
 
 
-def _tag_paragraphs_direct(paragraphs: list, chapter_title: str, model: str, client) -> list:
-    """Call the Anthropic API and return a list of {idx, tone, confidence} entries."""
-    numbered = "\n\n".join(
-        f"[{i}] {p[:600]}" for i, p in enumerate(paragraphs)
+def _build_user_msg(paragraphs: list, chapter_title: str) -> str:
+    numbered = "\n\n".join(f"[{i}] {p[:600]}" for i, p in enumerate(paragraphs))
+    return _USER_TEMPLATE.format(
+        chapter_title=chapter_title or "Unknown", paragraphs=numbered,
     )
-    user_msg = _USER_TEMPLATE.format(
-        chapter_title=chapter_title or "Unknown",
-        paragraphs=numbered,
-    )
+
+
+# Map our canonical model IDs to the short aliases `claude -p --model` accepts.
+_CLI_MODEL_ALIAS = {
+    "claude-haiku-4-5": "haiku",
+    "claude-sonnet-4-6": "sonnet",
+    "claude-opus-4-8": "opus",
+}
+
+
+def _tag_paragraphs_api(paragraphs: list, chapter_title: str, model: str, client) -> list:
+    """Direct Anthropic SDK (pay-as-you-go). Returns {idx, tone, confidence} entries."""
     response = client.messages.create(
         model=model,
         max_tokens=max(64, len(paragraphs) * 20),
         system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_msg}],
+        messages=[{"role": "user", "content": _build_user_msg(paragraphs, chapter_title)}],
     )
     raw = response.content[0].text
     return _parse_llm_response(raw, len(paragraphs))
 
 
-def _chapter_cache_key(body: str, model: str) -> str:
+def _tag_paragraphs_cli(paragraphs: list, chapter_title: str, model: str) -> list:
+    """Shell out to `claude -p` (subscription-funded). Returns the same entries.
+
+    The system prompt is prepended to the user message because `claude -p`
+    has no separate system-prompt channel; the classifier instruction works
+    fine as a preamble.
+    """
+    exe = shutil.which("claude")
+    if not exe:
+        raise RuntimeError(
+            "tone backend 'cli' needs the `claude` CLI on PATH (the vorpal-box "
+            "container has it). Install it, or use --tone-backend api."
+        )
+    alias = _CLI_MODEL_ALIAS.get(model, "haiku")
+    prompt = (_SYSTEM_PROMPT + "\n\n"
+              + _build_user_msg(paragraphs, chapter_title)
+              + "\n\nReturn ONLY the JSON array, no prose, no code fence.")
+    try:
+        proc = subprocess.run(
+            [exe, "-p", "--model", alias],
+            input=prompt, capture_output=True, text=True,
+            timeout=180, encoding="utf-8",
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("tone backend 'cli': `claude -p` timed out (180s)")
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"tone backend 'cli': `claude -p` exited {proc.returncode}: "
+            f"{(proc.stderr or '').strip()[:200]}"
+        )
+    return _parse_llm_response(proc.stdout, len(paragraphs))
+
+
+def _chapter_cache_key(body: str, model: str, backend: str = DEFAULT_BACKEND) -> str:
     text_hash = hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()[:16]
-    return f"{text_hash}_{model}_{PROMPT_VERSION}"
+    # Backend is part of the key so switching backends re-tags rather than
+    # silently mixing two providers' verdicts in one book.
+    return f"{text_hash}_{model}_{backend}_{PROMPT_VERSION}"
+
+
+def _tag_via_backend(paragraphs: list, title: str, model: str, backend: str) -> list:
+    """Dispatch to the chosen backend; returns raw {idx, tone, confidence} entries."""
+    if backend == "cli":
+        return _tag_paragraphs_cli(paragraphs, title, model)
+    if backend == "api":
+        key = _resolve_key()
+        if not key:
+            raise RuntimeError(
+                "tone backend 'api' requires VORPAL_ANTHROPIC_KEY — "
+                "see CLAUDE.md §Credentials (or use the default --tone-backend cli)"
+            )
+        try:
+            import anthropic
+        except ImportError:
+            raise RuntimeError("tone backend 'api' requires: pip install -e '.[llm]'")
+        client = anthropic.Anthropic(api_key=key)
+        return _tag_paragraphs_api(paragraphs, title, model, client)
+    raise ValueError(f"unknown tone backend {backend!r} (expected 'cli' or 'api')")
 
 
 def tag_chapter(body: str, title: str, cache_dir: Path,
-                model: str = DEFAULT_MODEL) -> dict:
+                model: str = DEFAULT_MODEL, backend: str = DEFAULT_BACKEND) -> dict:
     """Tag paragraphs in a chapter and cache the result.
 
     Returns:
@@ -167,21 +241,24 @@ def tag_chapter(body: str, title: str, cache_dir: Path,
           "chapter_title": str,
           "model": str,
           "prompt_version": str,
+          "backend": str,
           "tones": ["neutral", "somber", ...],   # one per paragraph
           "paragraphs": [{idx, tone, confidence, text_preview}, ...],
           "cache_hit": bool,
         }
 
-    Raises RuntimeError if VORPAL_ANTHROPIC_KEY is absent.
+    backend "cli" (default) uses the subscription via `claude -p`; "api" uses
+    the pay-as-you-go SDK with VORPAL_ANTHROPIC_KEY. Raises RuntimeError if the
+    chosen backend is unavailable.
     """
     paragraphs = split_paragraphs(body)
     if not paragraphs:
         return {"chapter_title": title, "model": model,
-                "prompt_version": PROMPT_VERSION,
+                "prompt_version": PROMPT_VERSION, "backend": backend,
                 "tones": [], "paragraphs": [], "cache_hit": False}
 
     cache_dir.mkdir(parents=True, exist_ok=True)
-    ck = _chapter_cache_key(body, model)
+    ck = _chapter_cache_key(body, model, backend)
     cache_file = cache_dir / f"tone_{ck}.json"
 
     if cache_file.exists():
@@ -192,21 +269,7 @@ def tag_chapter(body: str, title: str, cache_dir: Path,
         except (json.JSONDecodeError, KeyError):
             pass  # corrupt cache — re-tag
 
-    key = _resolve_key()
-    if not key:
-        raise RuntimeError(
-            "tone tagging requires VORPAL_ANTHROPIC_KEY — see CLAUDE.md §Credentials"
-        )
-
-    try:
-        import anthropic
-    except ImportError:
-        raise RuntimeError(
-            "tone tagging requires the anthropic SDK: pip install -e '.[llm]'"
-        )
-
-    client = anthropic.Anthropic(api_key=key)
-    raw_entries = _tag_paragraphs_direct(paragraphs, title, model, client)
+    raw_entries = _tag_via_backend(paragraphs, title, model, backend)
     gated = _apply_confidence_gate(raw_entries)
     tones = _smooth_tones([e["tone"] for e in gated])
 
@@ -214,6 +277,7 @@ def tag_chapter(body: str, title: str, cache_dir: Path,
         "chapter_title": title,
         "model": model,
         "prompt_version": PROMPT_VERSION,
+        "backend": backend,
         "tones": tones,
         "paragraphs": [
             {

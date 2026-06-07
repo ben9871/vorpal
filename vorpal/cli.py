@@ -77,7 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
                             "amount in USD (e.g. --max-cost 5.00); ignored for local engines")
     build.add_argument("--expressive", action="store_true",
                        help="Enable tone-tagged expressive narration via the Kokoro "
-                            "approximation layer (requires VORPAL_ANTHROPIC_KEY for tagging)")
+                            "approximation layer")
+    build.add_argument("--tone-backend", choices=["cli", "api"], default="cli",
+                       help="Tone-tagging backend: 'cli' (default) uses `claude -p` "
+                            "on your Claude subscription; 'api' uses the pay-as-you-go "
+                            "SDK with VORPAL_ANTHROPIC_KEY (unlocks Batches discount)")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -265,7 +269,8 @@ def cmd_build(args) -> None:
                 chapter_tones.append([])
                 continue
             try:
-                result = tag_chapter(ch["body"], ch["title"], tone_cache)
+                result = tag_chapter(ch["body"], ch["title"], tone_cache,
+                                     backend=getattr(args, "tone_backend", "cli"))
                 tones = result.get("tones", [])
                 ch["paragraph_tones"] = tones
                 chapter_tones.append(tones)

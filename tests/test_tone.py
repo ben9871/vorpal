@@ -210,13 +210,53 @@ def test_tag_chapter_cache_roundtrip(tmp_path):
     assert result["tones"] == ["neutral", "somber", "neutral"]
 
 
-def test_tag_chapter_no_key_raises(tmp_path, monkeypatch):
-    """tag_chapter raises RuntimeError when no API key is set."""
+def test_tag_chapter_api_backend_no_key_raises(tmp_path, monkeypatch):
+    """The 'api' backend raises RuntimeError when no API key is set."""
     monkeypatch.delenv("VORPAL_ANTHROPIC_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     cache_dir = tmp_path / "tone_cache"
     with pytest.raises(RuntimeError, match="VORPAL_ANTHROPIC_KEY"):
+        tag_chapter("A single paragraph.", "Chapter One", cache_dir, backend="api")
+
+
+def test_tag_chapter_cli_backend_no_claude_raises(tmp_path, monkeypatch):
+    """The default 'cli' backend raises RuntimeError when `claude` is not on PATH."""
+    monkeypatch.setattr("vorpal.tone.shutil.which", lambda _: None)
+    cache_dir = tmp_path / "tone_cache"
+    with pytest.raises(RuntimeError, match="claude.*CLI|--tone-backend api"):
         tag_chapter("A single paragraph.", "Chapter One", cache_dir)
+
+
+def test_tag_chapter_cli_backend_dispatches(tmp_path, monkeypatch):
+    """Default backend shells out to `claude -p` and parses its stdout."""
+    monkeypatch.setattr("vorpal.tone.shutil.which", lambda _: "/usr/bin/claude")
+    calls = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = '[{"idx":0,"tone":"somber","confidence":0.9},' \
+                 '{"idx":1,"tone":"somber","confidence":0.9}]'
+        stderr = ""
+
+    def _fake_run(cmd, **kw):
+        calls["cmd"] = cmd
+        calls["input"] = kw.get("input")
+        return _Proc()
+
+    monkeypatch.setattr("vorpal.tone.subprocess.run", _fake_run)
+    result = tag_chapter("Para one.\n\nPara two.", "Ch", tmp_path / "c")
+    assert calls["cmd"][:3] == ["/usr/bin/claude", "-p", "--model"]
+    assert calls["cmd"][3] == "haiku"          # full id mapped to CLI alias
+    assert result["backend"] == "cli"
+    assert result["tones"] == ["somber", "somber"]   # 2-run survives smoothing
+
+
+def test_backend_in_cache_key(tmp_path):
+    """cli and api backends produce distinct cache files for the same text."""
+    from vorpal.tone import _chapter_cache_key
+    body = "Para one.\n\nPara two."
+    assert _chapter_cache_key(body, "claude-haiku-4-5", "cli") != \
+        _chapter_cache_key(body, "claude-haiku-4-5", "api")
 
 
 def test_tag_chapter_empty_body(tmp_path):
