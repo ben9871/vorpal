@@ -89,20 +89,46 @@ starts in a real player (VLC/BookPlayer) — an agent can verify marker *timesta
 against chapter audio durations in the muxed file as the automated proxy; report
 lists every gate's result.
 
-## Phase 5 — End-to-end hardening *(the "any PDF" milestone — no release)*
+## Phase 5 — Multi-format input & end-to-end hardening *(no release)*
 
 *(Re-scoped 2026-06-07: no v1.0 tag, no PyPI — the project stays 0.x personal
 tooling for now. "v1" below means the quality bar, not a release event. The
 energy after this phase goes to expressiveness — see
 [07-ideation.md](07-ideation.md).)*
 
-- **Corpus sweep:** pull a diverse set of lawful real-world PDFs (public-domain
-  scans from the Internet Archive, Project Gutenberg born-digital, etc. — see
-  CLAUDE.md "Expanding the test corpus") spanning scan qualities, layouts
-  (single page, two-page spread, multi-column), and structure sources (outline /
-  printed TOC / neither). Run the pipeline through segment on all of them and
-  end-to-end on a sample; fix what surfaces; minimize each breakage into a test.
-  Generalization is the point — a tool that only survives Firestone is not v1.
+- **EPUB + plain-text input (do this first — easy win, unlocks Gutenberg).**
+  The PDF apparatus exists to *reconstruct* structure that PDFs destroy; EPUB
+  ships structure intact, so it must NOT be forced through extract/segment.
+  Per-format convergence points:
+  - **PDF** → extract → segment (existing path, unchanged).
+  - **EPUB** (`extract/epub.py`) → parse container/OPF spine + nav/NCX TOC →
+    sections with clean bodies directly — converging at the *segment output*
+    interface (manifest sections + body text). Chapters are ground truth
+    (`source: "spine"`); review auto-approves. Implementation: stdlib
+    (`zipfile` + `xml.etree` + `html.parser`) — avoid `ebooklib` (AGPL).
+  - **TXT** (`extract/text.py`) → clean-text chapter heuristics (safe here:
+    no OCR noise — v0's failure modes don't apply) → same section interface;
+    falls back to single-section + review like any unstructured book.
+  - `ingest` dispatches on file type; everything from normalize onward is
+    format-blind already. Manifest records `source.format`.
+  Accept when: a Gutenberg EPUB builds end-to-end with chapters from the
+  spine/TOC and **zero review edits**; a Gutenberg TXT builds with plausible
+  chapters (≤ 2 edits); small EPUB/TXT fixtures join the fast test suite.
+
+- **Corpus sweep:** pull a diverse set of lawful real-world books — PDFs from
+  the Internet Archive (see the validated recipe in
+  [06-corpus.md](06-corpus.md)) **and EPUBs/TXTs from Project Gutenberg**
+  (in scope once the item above lands) — spanning scan qualities, layouts
+  (single page, two-page spread, multi-column), structure sources (outline /
+  printed TOC / neither / spine), and formats. Run the pipeline through
+  segment on all of them and end-to-end on a sample; fix what surfaces;
+  minimize each breakage into a test. Generalization is the point — a tool
+  that only survives Firestone is not v1.
+- **Testing tiers (standing rule):** the pytest suite runs on *small fixtures
+  only* (page excerpts, generated mini-books, minimized regressions —
+  seconds, deterministic); full-book runs are *acceptance/corpus activities*
+  whose results are **recorded** in the status doc and corpus table, never
+  asserted in pytest. No test may take minutes.
 - Run the full regression set end-to-end; fix what surfaces.
 - Duration-sanity and marker-count package gates; `--allow-gaps` escape hatch with
   audible markers.
@@ -232,14 +258,17 @@ In rough value order (expressive narration graduated into Phases 6–9 above):
 1. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
 2. **Performance** — parallel page OCR (process pool), batched TTS on GPU
    (matters more once API engines bill per request).
-3. **EPUB input** — second `extract` backend; segmentation gets structure for free.
-4. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
+3. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
    front-matter classification on weird books (deterministic core,
    model-assisted edges).
-5. **Pronunciation lexicon** (per-book overrides for names/terms; LLM proposes
+4. **Pronunciation lexicon** (per-book overrides for names/terms; LLM proposes
    from the book's proper nouns, user approves in review).
-6. **Draft-mode builds** (`--draft`: fast engine, no mastering) for whole-book
+5. **Draft-mode builds** (`--draft`: fast engine, no mastering) for whole-book
    iteration before committing GPU/API spend.
+
+*(EPUB/TXT input graduated into Phase 5 on 2026-06-07 — structure ships
+intact in those formats, making them the cheap path, and they unlock the
+Gutenberg catalog as both corpus and product input. DOCX/web stay out.)*
 
 ## Risks & mitigations
 

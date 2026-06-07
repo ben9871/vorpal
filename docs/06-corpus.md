@@ -28,6 +28,13 @@ The traps are real, so follow the recipe:
 5. Prefer **known classics by exact title** (pre-1931 ⇒ US public domain)
    over broad searches. Gutenberg is mostly EPUB/TXT — not a PDF source.
 
+**Gutenberg (EPUB/TXT — once Phase 5's multi-format input lands):** direct,
+robot-friendly URLs per book id `N`:
+`https://www.gutenberg.org/cache/epub/N/pg-N.images.epub` (or `pgN.epub`),
+`https://www.gutenberg.org/cache/epub/N/pgN.txt` — find ids via
+`https://gutendex.com/books?search=<title>` (JSON API). Validate like PDFs:
+size sanity, opens (zipfile for EPUB), title match.
+
 ## Corpus
 
 | id | Title / source | Why chosen | Species | Pipeline result |

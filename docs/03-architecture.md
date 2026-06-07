@@ -20,7 +20,11 @@ vorpal/                           # the package
 ├── extract/
 │   ├── digital.py                # PyMuPDF text-layer extraction (blocks w/ bbox+font)
 │   ├── scanned.py                # image preprocess + Tesseract OCR (blocks w/ bbox+conf)
-│   └── pagemodel.py              # shared Page/Block dataclasses
+│   ├── epub.py                   # (Phase 5) spine/nav parse → sections directly —
+│   │                             #   EPUB ships structure intact, so it converges at
+│   │                             #   the segment OUTPUT, skipping extract+segment
+│   ├── text.py                   # (Phase 5) plain text → clean-text chapter heuristics
+│   └── pagemodel.py              # shared Page/Block dataclasses (PDF paths)
 ├── segment/
 │   ├── boilerplate.py            # running header/footer/page-number removal
 │   ├── footnotes.py              # footnote block detection & removal

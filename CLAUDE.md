@@ -89,8 +89,9 @@ work that only survives Firestone is not done. You may and should pull
 additional real-world PDFs to test against:
 
 - **Lawful sources only**: public-domain scans from the Internet Archive
-  (archive.org), Project Gutenberg PDFs, Wikisource/HathiTrust public-domain
-  works. Nothing pirated, nothing DRM'd.
+  (archive.org — PDFs; use the validated fetch recipe in `docs/06-corpus.md`),
+  Project Gutenberg (EPUB/TXT — in scope as of Phase 5), Wikisource/HathiTrust
+  public-domain works. Nothing pirated, nothing DRM'd.
 - Aim for **diversity, not volume**: different decades/publishers, single-page
   vs two-page-spread scans, skewed/low-contrast scans, born-digital with and
   without outlines, multi-column layouts, heavy-footnote academic books.
@@ -118,6 +119,10 @@ additional real-world PDFs to test against:
 - Every behavior gets a unit test; every phase updates `docs/05-status.md`
   (state table, acceptance evidence, "what to build next", environment facts)
   and ends in **one commit** titled `Phase N: …` with evidence in the body.
+- **Tests run on small fixtures only** (excerpts, generated mini-books,
+  minimized regressions — seconds, deterministic). Full-book runs are
+  acceptance/corpus activities: their results are *recorded* (status doc,
+  `docs/06-corpus.md`), never asserted in pytest. No test may take minutes.
 - Hard product rules: body text is never silently dropped (fail loud or flag
   for review); no voice cloning, ever; LLM passes are optional edges, the
   deterministic pipeline must build books without them.

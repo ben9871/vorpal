@@ -96,8 +96,11 @@ correction *cheap* (edit one small file, re-run, only affected work redone).
   the curated suite. Training a voice *ourselves* (licensed data, offline, shipped
   as just another suite entry) is in scope as our supply chain; a user-facing
   "clone this voice" feature is not, and won't become one.
-- **Non-PDF inputs** (EPUB, DOCX, web). The architecture keeps extraction behind one
-  interface so EPUB could be added later, but it is not part of this effort.
+- **DOCX / web / arbitrary formats.** *(Scope change 2026-06-07: EPUB and
+  plain-text input are now **in scope** — they carry structure intact, so they
+  are the cheap path through a pipeline built to reconstruct structure PDFs
+  destroy, and they unlock Project Gutenberg as a source. DOCX and web stay
+  out.)*
 - **GUI / server / multi-user anything.** Local CLI tool.
 - **DRM circumvention.** Input is assumed to be a PDF the user lawfully possesses.
 - **Multi-voice dramatization, music beds, sound effects.** One narrator voice per book.
