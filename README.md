@@ -61,8 +61,36 @@ vorpal build book.pdf --end-page 20 --output test_run
 vorpal build book.pdf --voice bm_george
 ```
 
-**Voices** (Kokoro): `af_heart` *(default)*, `af_nova`, `af_sky`, `am_echo`,
-`am_michael`, `am_fenrir`, `bf_emma`, `bm_george`.
+**Voices**: run `vorpal voices` to see the full suite (8 single voices + 3 blends).
+Default: `af_heart` (Heart — warm American female).
+Blend voices mix two voice embeddings for a new narrator with no training required.
+
+---
+
+## Voices
+
+```sh
+vorpal voices                         # list the suite
+vorpal voices --sample                # render audition clips → voices_preview/
+vorpal voices --sample --text "…"     # custom audition text
+```
+
+| ID | Name | Type | Description |
+|---|---|---|---|
+| `af_heart` | Heart | single | Warm, expressive American female — default |
+| `af_nova` | Nova | single | Clear, bright American female |
+| `af_sky` | Sky | single | Lighter, airier American female |
+| `am_echo` | Echo | single | Resonant American male |
+| `am_michael` | Michael | single | Steady, neutral American male |
+| `am_fenrir` | Fenrir | single | Deep, commanding American male |
+| `bf_emma` | Emma | single | Clear, measured British female |
+| `bm_george` | George | single | Distinguished British male |
+| `blend_warm_bright` | Warm-Bright | blend | Heart 65% + Nova 35% — warmth with clarity |
+| `blend_deep_steady` | Deep-Steady | blend | Fenrir 55% + Michael 45% — depth with steadiness |
+| `blend_transatlantic` | Transatlantic | blend | Heart 50% + Emma 50% — American + British |
+
+Blend voices are weighted mixes of Kokoro voice embeddings computed at build time.
+Changing a blend recipe in the registry invalidates only that voice's cached audio chunks.
 
 ---
 
@@ -184,11 +212,15 @@ run `vorpal review --approve` to continue.
 ## Command reference
 
 ```
+vorpal voices [--sample [--text "..."]]
+  --sample            Render audition WAV for each voice (requires Kokoro / GPU)
+  --text TEXT         Custom audition text for --sample
+
 vorpal build INPUT [options]
   INPUT               PDF, EPUB, or TXT file
   --title TEXT        Audiobook title (overrides metadata)
   --author TEXT       Author (overrides metadata)
-  --voice VOICE       Kokoro voice (default: af_heart)
+  --voice ID          Voice from registry, e.g. blend_warm_bright (default: af_heart)
   --speed N           Narration speed multiplier (default: 1.0)
   --output STEM       Output stem (default: input filename without extension)
   --dpi N             OCR rasterisation DPI (default: 300, PDF only)
@@ -230,7 +262,8 @@ vorpal/
   normalize.py        Spoken-form normalisation + prosody-aware chunking
   tts/
     base.py           TTSEngine interface
-    kokoro_engine.py  Kokoro TTS adapter
+    kokoro_engine.py  Kokoro TTS adapter (single voices + blend tensor support)
+    voices.py         Voice registry — curated narrators incl. blend recipes
   synth.py            Per-chapter synthesis, chunk cache, retry policy
   master.py           Loudnorm, M4B assembly, mastering cache, chapter gate
 tests/               pytest suite + fixture assets

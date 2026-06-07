@@ -33,7 +33,7 @@ from .binaries import MissingBinaryError
 from .master import compile_m4b
 from .segment import Section, section_body, segment_pages
 from .synth import safe_filename, tts_all_chapters
-from .tts import KOKORO_VOICES, KokoroEngine
+from .tts import KOKORO_VOICES, KokoroEngine, VOICE_REGISTRY, resolve_voice, list_voices
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,8 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("input", help="Input file: PDF, EPUB, or plain-text (.txt)")
     build.add_argument("--title",   default="",  help="Audiobook title metadata")
     build.add_argument("--author",  default="",  help="Author metadata")
-    build.add_argument("--voice",   default="af_heart", choices=KOKORO_VOICES,
-                       help="Kokoro voice (default: af_heart)")
+    build.add_argument("--voice",   default="af_heart",
+                       help="Voice id from registry, e.g. af_heart, blend_warm_bright "
+                            "(run `vorpal voices` to list all)")
     build.add_argument("--speed",   type=float, default=1.0,
                        help="Narration speed multiplier (default: 1.0)")
     build.add_argument("--output",  default=None)
@@ -79,6 +80,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Workdir stem if it differs from the input file name")
     review.add_argument("--approve", action="store_true",
                         help="Mark the chapter list as approved for synthesis")
+
+    voices_cmd = sub.add_parser("voices", help="List available narrator voices")
+    voices_cmd.add_argument("--sample", action="store_true",
+                            help="Render a short audition WAV for each voice "
+                                 "into voices_preview/ (requires Kokoro / GPU)")
+    voices_cmd.add_argument("--text", default=None,
+                            help="Custom text for the audition clip (default: built-in excerpt)")
+
     return parser
 
 
@@ -135,12 +144,21 @@ def cmd_build(args) -> None:
     seg_pages_path = work_dir / "pages_segmented.jsonl"
     footnotes_path = work_dir / "footnotes.json"
 
+    # Validate --voice against the registry
+    voice_entry = resolve_voice(args.voice)
+    if voice_entry is None:
+        all_ids = ", ".join(VOICE_REGISTRY)
+        sys.exit(f"ERROR: Unknown voice '{args.voice}'.\n"
+                 f"  Available: {all_ids}\n"
+                 f"  (run `vorpal voices` for descriptions)")
+
     fmt_label = {"pdf": "PDF", "epub": "EPUB", "txt": "TXT"}[fmt]
+    voice_label = voice_entry.display_name
     print("=" * 58)
     print(f"  {fmt_label} -> Audiobook Pipeline  (vorpal {__version__})")
     print(f"  Input:  {input_path}")
     print(f"  Output: {output_stem}.m4b")
-    print(f"  TTS:    Kokoro (voice: {args.voice}, speed: {args.speed})")
+    print(f"  TTS:    Kokoro — {voice_label} ({args.voice}, speed: {args.speed})")
     if args.title:  print(f"  Title:  {args.title}")
     if args.author: print(f"  Author: {args.author}")
     print("=" * 58)
@@ -220,7 +238,13 @@ def cmd_build(args) -> None:
         for f in audio_dir.glob("*.wav"):
             f.unlink()
 
-    engine = KokoroEngine(voice=args.voice, speed=args.speed)
+    # Store resolved voice params in the manifest so the build is reproducible
+    # and so that changing a blend recipe correctly invalidates cached audio.
+    manifest.data["settings"]["voice_id"] = voice_entry.id
+    manifest.data["settings"]["voice_params"] = voice_entry.params
+    manifest.save()
+
+    engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
     chapter_results, synth_report = tts_all_chapters(
         chapters, audio_dir, chapters_dir, engine,
         allow_gaps=getattr(args, "allow_gaps", False),
@@ -380,6 +404,60 @@ def cmd_review(args) -> None:
         print(f"      vorpal review {args.input}{out_flag} --approve")
 
 
+def cmd_voices(args) -> None:
+    voices = list_voices()
+    blends = [v for v in voices if "blend" in v.params]
+    singles = [v for v in voices if "blend" not in v.params]
+
+    print(f"\n  Voice Suite  —  {len(voices)} narrators "
+          f"({len(singles)} single, {len(blends)} blend)\n")
+    print(f"  {'ID':<28} {'Name':<18} {'Type':<8} Description")
+    print(f"  {'─'*28} {'─'*18} {'─'*8} {'─'*42}")
+    for v in voices:
+        v_type = "blend" if "blend" in v.params else "single"
+        print(f"  {v.id:<28} {v.display_name:<18} {v_type:<8} {v.description}")
+
+    print(f"\n  Usage:   vorpal build book.pdf --voice <id>")
+    print(f"  Sample:  vorpal voices --sample   (renders voices_preview/<id>.wav)")
+
+    if args.sample:
+        _render_voice_samples(voices, args.text)
+
+
+_SAMPLE_TEXT = (
+    "It was a bright cold day in April, and the clocks were striking thirteen. "
+    "Winston Smith, his chin nuzzled into his breast in an effort to escape the "
+    "vile wind, slipped quickly through the glass doors of Victory Mansions."
+)
+
+
+def _render_voice_samples(voices, custom_text: str = None) -> None:
+    """Render a short audition WAV for each voice into voices_preview/."""
+    text = custom_text or _SAMPLE_TEXT
+    out_dir = Path("voices_preview")
+    out_dir.mkdir(exist_ok=True)
+    print(f"\n  Rendering {len(voices)} audition clips → {out_dir}/")
+    print(f"  Text: {text[:70]!r}…\n")
+
+    for v in voices:
+        out_path = out_dir / f"{v.id}.wav"
+        print(f"  {v.id:<28}  ", end="", flush=True)
+        try:
+            engine = KokoroEngine(params=v.params)
+            audio = engine.synthesize(text)
+            if audio is None or len(audio) == 0:
+                print("WARN: no audio produced")
+                continue
+            import soundfile as sf
+            sf.write(str(out_path), audio, engine.sample_rate)
+            duration_s = len(audio) / engine.sample_rate
+            print(f"✓  {duration_s:.1f}s  →  {out_path}")
+        except Exception as e:
+            print(f"FAIL: {e}")
+
+    print(f"\n  Done. {len(list(out_dir.glob('*.wav')))} clip(s) in {out_dir}/")
+
+
 def main(argv=None) -> None:
     # Progress output uses unicode (em-dashes, bars); don't crash on legacy
     # Windows console codepages (e.g. cp932) — degrade to replacement chars.
@@ -392,6 +470,8 @@ def main(argv=None) -> None:
         cmd_build(args)
     elif args.command == "review":
         cmd_review(args)
+    elif args.command == "voices":
+        cmd_voices(args)
 
 
 if __name__ == "__main__":

@@ -46,14 +46,14 @@ def safe_filename(s: str) -> str:
 def _cache_key(chunk: Chunk, engine: TTSEngine) -> str:
     """Stable filename for a cached chunk WAV.
 
-    Keyed on (text_hash, engine, voice, speed, tone) so edits to one chapter
-    do not invalidate other chapters' cached audio, and a title edit re-synths
-    only the intro chunk.
+    Keyed on (text_hash, engine, voice_key, speed, tone).  voice_key uses
+    engine.voice_cache_key when available so blend-recipe edits invalidate
+    exactly the affected audio without touching other voices' caches.
     """
     tone_part = chunk.tone or "none"
-    voice = getattr(engine, "voice", "default")
+    voice_key = getattr(engine, "voice_cache_key", None) or getattr(engine, "voice", "default")
     speed = getattr(engine, "speed", 1.0)
-    raw = f"{chunk.text_hash}_{engine.name}_{voice}_{speed}_{tone_part}"
+    raw = f"{chunk.text_hash}_{engine.name}_{voice_key}_{speed}_{tone_part}"
     # Sanitize for use as a filename
     raw = re.sub(r"[^\w\-]", "_", raw)
     return raw + ".wav"
