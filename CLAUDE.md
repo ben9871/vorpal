@@ -121,22 +121,28 @@ vorpal-box case), these are hard rules, not suggestions:
 - **Update `docs/05-status.md` every phase** — state table, acceptance results,
   and an honest list of `(human)` / `(blocked)` items. This is the morning
   review surface; if it's stale, the run is unreviewable.
-- **Do NOT, while unsupervised:** spend money (no pay-as-you-go API calls — the
-  `cli` tone backend on the subscription is fine; the `api` backend is not);
-  download model weights or datasets > 100 MB *unless the current phase
-  explicitly names that download* (Whisper `base` in Phase 12, etc.); push to
-  any remote / open PRs; delete or overwrite anything you didn't create this
-  session; accept a license or make a legal/financial commitment on the
-  operator's behalf; run a single job expected to exceed ~1 hour without it
-  being the phase's stated deliverable.
-- **Never simulate acceptance.** If a step needs a credential, a download, or a
-  human you don't have, mark it `(blocked: …)` or `(human)` in the status doc
-  and move on — a faked green is worse than an honest blocked.
-- **If you run out of specified work:** do not invent risky tasks. Write a
+- **Hard limits, always:** **spend no money** (no pay-as-you-go API calls — the
+  `cli` tone backend on the subscription is fine; the `api` backend is not; no
+  paid datasets/models); **no remote pushes / no PRs**; **don't delete or
+  overwrite anything you didn't create this session**; **don't wedge the
+  machine** — detect VRAM/RAM budget and stay under it with margin, abort
+  before OOM; **never accept a commercial license** on the operator's behalf.
+- **Downloads & experiments are fine when isolated.** Pulling open models or
+  public-domain/licensed data, and running GPU experiments, is allowed — the
+  container is a sandbox — **provided it stays in `playground/` (gitignored)
+  and never touches the shipped `vorpal/` package or committed pipeline.** Heavy
+  artifacts stay out of git; the *findings* get committed as a doc. Integrating
+  any experimental result into the shipped product is gated on human
+  confirmation — surface it, don't wire it in.
+- **Never simulate acceptance.** If a step needs a credential or a human you
+  don't have, mark it `(blocked: …)` / `(human)` in the status doc and move on
+  — a faked green is worse than an honest blocked.
+- **If you run out of specified work:** don't invent risky tasks. Write a
   concrete proposal for the next phase into the roadmap, update the status doc,
   and stop cleanly. A clean stop with a good handoff is a successful run.
-- **Phase 9 (in-house voices) is proposal-only** — see its roadmap entry. No
-  training, no downloads, no spend under any circumstances while unsupervised.
+- **Phase 9 (in-house voices)** is a *real* spike but **playground-isolated** —
+  see its roadmap entry: experiment freely within hardware budget, keep it out
+  of the shipped package, gate integration on sign-off.
 
 ## Working conventions
 

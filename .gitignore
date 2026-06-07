@@ -23,3 +23,12 @@ voices-v*.bin
 
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
+
+# Research playground — isolated experiments (model downloads, training runs,
+# sample audio). Heavy artifacts stay out of git; the *findings* are committed
+# as docs/08-voice-training-spike.md. Nothing here touches the shipped pipeline.
+playground/
+*.pt
+*.pth
+*.safetensors
+*.ckpt

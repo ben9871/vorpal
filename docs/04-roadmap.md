@@ -317,26 +317,39 @@ faster than a full build; documented in README; full build path unchanged.
 
 ---
 
-## Phase 9 — In-house voices *(research spike — PROPOSAL ONLY, run last)*
+## Phase 9 — In-house voices *(hands-on research spike — isolated, run last)*
 
-The own-it-forever path to a character narrator. **This phase produces a
-written proposal for human review — it does NOT execute.** Under no
-circumstances, running unsupervised, may the agent: download model weights or
-datasets, start a training run, spend money, or accept a license on the
-operator's behalf. Those are explicit human decisions gated on this report.
+The own-it-forever path to a character narrator. This is a **real spike**: the
+container is a sandbox, so the agent may download open models, pull
+properly-licensed / public-domain voice data, and run actual fine-tune /
+inference experiments on the GPU — **as long as it stays within hardware budget
+and isolated from the shipped pipeline**. Constraints (see CLAUDE.md
+Unsupervised-run protocol § research playground):
 
-- Output `docs/08-voice-training-spike.md`: dataset licensing landscape (which
-  voice datasets are actually licensable, and how), candidate base models
-  (StyleTTS2 / Orpheus / Kokoro fine-tune) with concrete training-cost / time /
-  quality / legal trade-offs, a minimal proof-of-concept *plan* (data, steps,
-  GPU hours, $ estimate), and a clear **go / no-go recommendation** with a
-  proposed Phase-15 execution plan.
-- Ships, if ever approved, as a registry entry like any other — users see a
-  name and a sample, never the training story.
+- **Isolation:** all experiment work lives under `playground/` (gitignored —
+  model weights, datasets, sample audio). It must NOT modify the shipped
+  package (`vorpal/…`), the voice registry, or any committed pipeline path.
+  Integrating a trained voice into `tts/voices.py` is gated on human
+  confirmation — surface samples + a recommendation, don't wire it in.
+- **Hardware budget:** detect VRAM (`nvidia-smi`) and RAM (`free`) at the
+  start; stay well under (target ≤ ~80 % VRAM, leave system RAM headroom);
+  monitor during runs and abort before OOM. Prefer small models / LoRA /
+  short runs over anything that would wedge the machine. The RTX 4050 laptop
+  GPU (~6 GB VRAM) is modest — size experiments to it.
+- **Still hard limits:** no money (no paid APIs / no paid datasets — open &
+  public-domain only); no accepting commercial licenses on the operator's
+  behalf; no remote pushes; no single run left unattended that you can't
+  checkpoint and resume.
+- **Output (committed):** `docs/08-voice-training-spike.md` — what was tried,
+  what worked, hardware actually used, sample-audio pointers in `playground/`,
+  candidate base models (StyleTTS2 / Orpheus / Kokoro fine-tune) with real
+  measured trade-offs, a **go / no-go recommendation**, and a proposed
+  Phase-15 plan for *integrating* a chosen voice (the part that needs sign-off).
 
-**Accept when:** the spike doc exists, is concrete (names specific datasets,
-licenses, models, numbers), and ends with a go/no-go + proposed Phase-15 plan.
-No code, no downloads, no spend.
+**Accept when:** the spike doc exists and is grounded in *actual* experiments
+(real numbers, real hardware usage, listenable samples in `playground/`); the
+shipped package is untouched; the run stayed within budget and spent no money;
+ends with a go/no-go + proposed integration plan.
 
 ---
 

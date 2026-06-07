@@ -28,7 +28,7 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
-| Phase 9 — in-house voices (research spike, **proposal-only**, run last) | queued | roadmap |
+| Phase 9 — in-house voices (hands-on spike, **playground-isolated**, run last) | queued | roadmap |
 
 **Next-up (unsupervised day, execution order):** Phase **10 → 11 → 12 → 13 →
 14**, then Phase **9** (proposal-only research) last. Full specs +
