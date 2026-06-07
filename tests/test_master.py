@@ -344,5 +344,5 @@ def test_compile_m4b_loudness_gate(tmp_path):
         work_dir=tmp_path / "workdir",
     )
     assert m4b.exists()
-    report_text = Path(str(tmp_path / "gate_test") + "_report.md").read_text()
+    report_text = Path(str(tmp_path / "gate_test") + "_report.md").read_text(encoding="utf-8")
     assert "PASS" in report_text
