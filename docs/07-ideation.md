@@ -3,10 +3,17 @@
 *Started 2026-06-07. This is the thinking document for everything past the
 "clean, correct, coherent" bar — new voices, an **effective** tone system, and
 the path to the north star (any PDF → a voice you want to hear reads it
-expressively). Nothing here is committed work; ideas graduate from this doc
-into [04-roadmap.md](04-roadmap.md) when they earn it. The deterministic core
-remains sacred: every idea below must degrade gracefully to "books still build
-without it."*
+expressively). Ideas graduate from this doc into [04-roadmap.md](04-roadmap.md)
+when they earn it. The deterministic core remains sacred: every idea below must
+degrade gracefully to "books still build without it."*
+
+> **Graduated 2026-06-07 → roadmap Arc 2:** voice registry/blending/audition
+> (Phase 6), first tone-capable API engine + cost guard (Phase 7), tone
+> tagging + effectiveness gates (Phase 8), in-house voice training spike
+> (Phase 9), far-future UI note. The sections below remain the *reasoning*
+> behind those phases — read them before implementing one. The product
+> boundary sharpened in the vision doc: **users never supply voice samples**;
+> in-house-trained voices ship as ordinary suite entries.
 
 ---
 
@@ -136,6 +143,17 @@ The trap is shipping vibes. Two cheap measurements before any listening party:
 2. **Blind A/B protocol (human, tiny):** 10 paired clips (tagged build vs
    all-neutral build), user picks which reads better. The feature earns its
    default-on only by winning this; otherwise it stays `--expressive` opt-in.
+
+## 2e. Far future: a visual layer (parked by decision)
+
+Bottom of the priority list — *we need a product before packaging* — but
+worth one paragraph of foresight so future planning has a hook: the moments
+that would benefit from UI are exactly the existing human checkpoints —
+review-table editing, voice audition, tone-map inspection, live build
+progress. All of them are manifest reads/writes, so the natural shape is a
+thin local web UI (FastAPI + a small page) or a TUI over `book.json`, later
+wrapped as an exe (PyInstaller) if distribution ever matters. No architecture
+changes needed now; explicitly not being built.
 
 ## 3. Parking lot (adjacent ideas, unsorted)
 

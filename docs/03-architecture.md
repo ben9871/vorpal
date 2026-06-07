@@ -28,9 +28,12 @@ vorpal/                           # the package
 │   ├── frontmatter.py            # front/back-matter classification
 │   └── repair.py                 # de-hyphenation, mojibake, paragraph reflow
 ├── normalize.py                  # TTS text normalization + sentence segmentation + chunking
-├── tone.py                       # (post-v1) optional LLM tone-tagging pass over chunks
+├── tone.py                       # (Arc 2, Phase 8) optional LLM tone-tagging pass
 ├── tts/
 │   ├── base.py                   # TTSEngine interface (incl. optional tone support)
+│   ├── voices.py                 # (Arc 2, Phase 6) curated voice registry: id →
+│   │                             #   {engine, params (voice/blend/model), description};
+│   │                             #   users pick ids, never engines. No user samples.
 │   └── kokoro_engine.py          # default engine
 ├── master.py                     # loudness norm, chapter encode, streaming concat
 ├── package.py                    # m4b mux, chapters, metadata, cover

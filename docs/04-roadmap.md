@@ -120,28 +120,113 @@ garbage output, never a crash.
 
 ---
 
-## Post-v1 candidates (explicitly deferred)
+# Arc 2 — The voice suite & expressive narration
 
-In rough value order:
+*(Added 2026-06-07 after Phases 0–4 landed. These phases are planned from
+[07-ideation.md](07-ideation.md) — the thinking lives there, the commitments
+live here. Same rules as Arc 1: each phase ends in a working state with
+acceptance criteria; the Firestone book + digital regression books remain the
+standing test set. Hard boundary throughout: **users never supply voice
+samples** — the suite is curated by us, even when a voice was trained by us.)*
 
-1. **Expressive narration (`tone.py`)** — the optional LLM pass that tags each
-   paragraph / n-sentence run with a tone from a small controlled vocabulary
-   (`neutral`, `somber`, `tense`, `wry`, `excited`, …). The chunk schema, engine
-   interface, and cache key already carry `tone` from Phase 3; this fills it.
-   Ships with: prompt + vocabulary spec, per-chapter tagging cache (an LLM pass must
-   not re-run on every build), a `report.md` tone histogram, and an `--expressive`
-   flag (off by default — the deterministic pipeline must never depend on a model).
-2. **Expressive / character-voice engines** — Piper (speed), API engines (quality),
-   and tone-capable or character-style voices (the north star's anime-girl narrator)
-   behind `TTSEngine.supported_tones`. Pairs with #1: tags without an engine that
-   acts on them are inert; an engine without tags is monotone.
-3. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
-4. **Performance** — parallel page OCR (process pool), batched TTS on GPU.
-5. **EPUB input** — second `extract` backend; segmentation gets structure for free.
-6. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
-   front-matter classification on weird books (same deterministic-core /
-   model-assisted-edges rule as #1).
-7. Pronunciation lexicon (per-book overrides for names/terms).
+## Phase 6 — Voice suite v1 *(picking a narrator becomes a 30-second decision)*
+
+- `tts/voices.py` — the **voice registry**: curated entries
+  `{id, display_name, engine, params, description}`. v1 sources: Kokoro
+  single voices + **curated blends** (Kokoro voices are embedding tensors; a
+  weighted mix is a new narrator for free). The registry is the only thing
+  users see; engines/params are implementation detail.
+- `vorpal voices` — list the suite; `vorpal voices --sample [--text "…"]`
+  renders a short audition WAV per voice into `voices_preview/`.
+- `--voice <id>` resolves through the registry; the manifest stores the id
+  **and the resolved params**, and the chunk-cache key uses resolved params —
+  editing a blend recipe must invalidate precisely the affected audio.
+- README gains a "Voices" section with the suite table.
+
+**Accept when:** registry ships ≥ 6 curated voices including ≥ 2 blends with
+distinct character (audition them — **(human)** pick favorites); a full build
+runs with a blend voice; changing a blend's weights re-synthesizes (cache
+invalidation test); `vorpal voices --sample` outputs play correctly.
+
+## Phase 7 — First tone-capable engine *(the realization path, proven)*
+
+- One API engine adapter behind `TTSEngine` — choose at spike time between
+  OpenAI steerable TTS (instruction strings) and Azure Neural (SSML
+  `express-as` styles); both map cleanly onto our tone vocabulary
+  (full-book cost ≈ $5–15, see ideation §1c).
+- Cost machinery before the first request: per-build character count →
+  estimate printed at the review gate; `--max-cost` aborts over budget.
+- Network failure modes mapped into the existing retry→split→abort policy;
+  API results enter the same chunk cache (keys already carry engine + tone).
+- Tone pass-through proven **without** the tagger: manually set one chapter's
+  chunks to `somber` in a scratch run; the engine must realize it.
+
+**Accept when:** a 1-chapter Firestone build through the API engine completes
+with `failed: 0` and a printed cost line matching the estimate (±20 %); the
+manual-tone chapter measurably differs from its neutral build (f0/energy/rate
+delta — the acoustic check from ideation §2d); pulling the network mid-build
+aborts loudly with a resumable cache.
+
+## Phase 8 — Tone tagging & the effectiveness verdict *(`--expressive`)*
+
+- `tone.py` — LLM tags **paragraphs** against the ≤ 8-tag vocabulary
+  (ideation §2a) with context windows; **smoothing/hysteresis** (min 2–3
+  paragraph runs; isolated spikes damped to neutral); confidence-gated
+  (low confidence → neutral); cached per
+  `(chapter_text_hash, model, prompt_version)`.
+- Review surface: `vorpal review --tones` prints the per-chapter tone map for
+  editing in `book.json`; `report.md` gains the tone histogram.
+- Chunker aligns chunk boundaries with tone-run boundaries (tone is
+  per-chunk).
+- The **effectiveness gate**, per ideation §2d: (a) acoustic-delta check —
+  non-neutral tags must produce statistically distinct audio; (b) a blind A/B
+  kit — paired 1-minute clips (tagged vs all-neutral) emitted for the user.
+- Everything behind `--expressive`, off by default. The deterministic
+  no-tone build must remain byte-identical to Phase 7 output.
+
+**Accept when:** tagging Firestone twice is a 100 % cache hit; neutral
+fraction lands in a sane band (≳ 60 %); the acoustic-delta gate passes for
+every tag the engine claims to support; **(human)** the A/B kit verdict —
+the feature stays opt-in unless the tagged build wins.
+
+## Phase 9 — In-house voices *(design + spike only, gated on 6–8)*
+
+Custom-training our own suite voices (the own-it-forever path to the
+character narrator). Deliberately **not specified yet** beyond guardrails:
+
+- Spike first: dataset licensing diligence (only properly licensed voice
+  data), candidate base models (StyleTTS2 / Orpheus / Kokoro fine-tune), one
+  proof-of-concept voice evaluated against the suite's quality bar.
+- Ships, if ever, as a registry entry like any other — users see a name and
+  a sample, never the training story.
+- Full phase plan gets written into this doc only after the spike reports.
+
+---
+
+## Far future (thought about, deliberately not planned)
+
+- **A visual layer / exe.** Bottom of the priority list by decision
+  (2026-06-07): we need a product before packaging. When its day comes, the
+  UI-worthy moments are already CLI checkpoints — review-table editing, voice
+  audition, tone-map inspection, build progress — which suggests a thin local
+  web UI (or TUI) over the manifest, then perhaps a PyInstaller exe. Nothing
+  in the architecture blocks this; nothing in it is being built now.
+
+## Post-Arc-2 candidates (explicitly deferred)
+
+In rough value order (expressive narration graduated into Phases 6–9 above):
+
+1. **ASR round-trip QA** — Whisper spot-check of sampled chunks, WER alerts.
+2. **Performance** — parallel page OCR (process pool), batched TTS on GPU
+   (matters more once API engines bill per request).
+3. **EPUB input** — second `extract` backend; segmentation gets structure for free.
+4. **LLM-assisted repair** — optional pass for OCR-damaged passages and smarter
+   front-matter classification on weird books (deterministic core,
+   model-assisted edges).
+5. **Pronunciation lexicon** (per-book overrides for names/terms; LLM proposes
+   from the book's proper nouns, user approves in review).
+6. **Draft-mode builds** (`--draft`: fast engine, no mastering) for whole-book
+   iteration before committing GPU/API spend.
 
 ## Risks & mitigations
 

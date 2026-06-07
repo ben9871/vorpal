@@ -66,9 +66,12 @@ correction *cheap* (edit one small file, re-run, only affected work redone).
    repetition, footnote separation, hyphenation repair, front/back-matter classification,
    chapter detection that consults the PDF outline and the printed TOC before falling
    back to heuristics.
-3. **TTS with curated standard voices** (Kokoro as the default engine), behind a small
-   engine interface so a better local or API engine — including expressive,
-   character-style voices — can be plugged in later.
+3. **A curated voice suite.** The user picks a narrator from a menu (`vorpal
+   voices` to audition, `--voice <id>` to choose) — built-in engine voices,
+   curated blends, and eventually voices **custom-trained by us**. The supply
+   chain (which engine, whose training run) is invisible to the user: every
+   voice is just an option with a name and a sample. Behind the same small
+   `TTSEngine` interface so local and API engines coexist.
 4. **A text-normalization layer for TTS** — numbers, roman numerals, abbreviations,
    citations, quotes, dashes — so the narration sounds like a narrator, not a screen
    reader. Chunking is prosody-aware (sentence-safe, paragraph-aligned, pause
@@ -85,13 +88,14 @@ correction *cheap* (edit one small file, re-run, only affected work redone).
 
 ## Explicitly out of scope
 
-- **Voice cloning.** The F5-TTS `--voice-ref` path is removed, not fixed. The audit
-  ([01-audit.md](01-audit.md) §3) shows the incoherence was structural (per-chunk random
-  seeds, 8-second context windows, noisy reference audio), and even a repaired
-  implementation trades away the consistency that defines a listenable audiobook. Curated
-  voices are consistent by construction. If voice variety is ever wanted — including the
-  north star's character narrator — the path is *more curated voices / better expressive
-  engines behind `TTSEngine`*, not cloning.
+- **Voice cloning, precisely bounded: users never supply voice samples.** The
+  F5-TTS `--voice-ref` path is removed, not fixed (audit
+  [01-audit.md](01-audit.md) §3: the incoherence was structural, and even repaired
+  it trades away the consistency that defines a listenable audiobook). The product
+  boundary: **no user-supplied reference audio, ever** — voice variety comes from
+  the curated suite. Training a voice *ourselves* (licensed data, offline, shipped
+  as just another suite entry) is in scope as our supply chain; a user-facing
+  "clone this voice" feature is not, and won't become one.
 - **Non-PDF inputs** (EPUB, DOCX, web). The architecture keeps extraction behind one
   interface so EPUB could be added later, but it is not part of this effort.
 - **GUI / server / multi-user anything.** Local CLI tool.

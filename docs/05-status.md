@@ -19,7 +19,11 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 2 — segmentation v2 (boilerplate, footnotes, repair, chapter cascade, review) | ✅ done | commit Phase 2 |
 | Phase 3 — normalization & synthesis hardening | ✅ done | commit `1e935f3` |
 | **Phase 4 — mastering & packaging** | ✅ done | this commit |
-| Phase 5 — end-to-end hardening, v1 | ⬅ **next** | — |
+| Phase 5 — end-to-end hardening (no release — stays 0.x) | ⬅ **next** | — |
+| Arc 2: Phase 6 — voice suite v1 (registry, blends, audition) | queued | roadmap |
+| Arc 2: Phase 7 — first tone-capable engine (API, cost-guarded) | queued | roadmap |
+| Arc 2: Phase 8 — tone tagging + effectiveness gates (`--expressive`) | queued | roadmap |
+| Arc 2: Phase 9 — in-house voices (spike-gated) | queued | roadmap |
 
 ## Phase 3 acceptance results
 

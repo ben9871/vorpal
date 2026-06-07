@@ -5,10 +5,14 @@ One two, one two, and through and through: the jabberwocky in question is the
 running headers, OCR noise, fake chapters, and screen-reader monotone that a
 naive PDF→TTS pipe narrates at you.
 
-> **Status: Phase 2 complete** — segmentation v2 is in: cross-page boilerplate
-> clustering, footnote separation, text repair, the outline → printed-TOC →
-> heuristics chapter cascade, and the `vorpal review` checkpoint. Normalization
-> and synthesis are still v0-level; the rebuild plan lives in [`docs/`](docs/):
+> **Status: Phases 0–4 complete** (0.x — no release planned). The full pipeline
+> works end-to-end: manifest-driven builds with hash-based resume, per-page
+> digital/OCR extraction with QA, the outline → printed-TOC → heuristics chapter
+> cascade with the `vorpal review` checkpoint, prosody-aware normalization with a
+> no-loss invariant, cached synthesis with a retry→split→abort failure policy,
+> and loudness-normalized M4B mastering with a QA report. Next: Phase 5 hardening
+> (corpus sweep), then the voice suite & expressive narration (roadmap Arc 2).
+> The plan lives in [`docs/`](docs/):
 >
 > 1. [Audit of the v0 implementation](docs/01-audit.md) — what's wrong, with evidence
 > 2. [Product vision & scope](docs/02-product-vision.md) — what we're building (voice cloning is dropped)
