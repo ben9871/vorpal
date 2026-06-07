@@ -47,7 +47,33 @@ version tags, no PyPI.
   Firestone workdir with the build command in the status doc's re-entry
   checklist (~4 min of OCR).
 
-## Commands
+## Credentials (for LLM-pass features, e.g. tone.py)
+
+- **`VORPAL_ANTHROPIC_KEY`** — Anthropic API key for *product features* that
+  call an LLM (the Phase 8 tone-tagging pass). Present in the vorpal-box
+  container (run.ps1 injects it) and in the host user environment. Resolve it
+  explicitly and pass it explicitly — never rely on the SDK's default env
+  resolution inside the container:
+
+  ```python
+  import os, anthropic
+  key = os.environ.get("VORPAL_ANTHROPIC_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+  if not key:
+      raise SystemExit("tone tagging needs VORPAL_ANTHROPIC_KEY — see CLAUDE.md")
+  client = anthropic.Anthropic(api_key=key)
+  ```
+
+  Model for tagging: `claude-haiku-4-5` (escalate to `claude-sonnet-4-6` only
+  if tags fail the effectiveness eval). Submit per-chapter via the Batches API
+  (50 % cheaper; tagging is never latency-sensitive). Full decision record:
+  `docs/07-ideation.md` §2b. The `anthropic` SDK ships via the `llm` extra —
+  already baked into vorpal-box; on a plain host: `pip install -e .[llm]`.
+- **Never** set or export a bare `ANTHROPIC_API_KEY` inside the container —
+  it hijacks the agent's own subscription auth (`CLAUDE_CODE_OAUTH_TOKEN`).
+  Never print either credential; verify presence with `bool(...)` only.
+- Every LLM pass must be cache-guarded (key results by
+  `(content_hash, model, prompt_version)`) and budget-guarded (estimate
+  tokens up front; respect `--max-cost`). A book is tagged once, ever.
 
 ```
 python -m pytest -q                  # full suite; must be green before commit

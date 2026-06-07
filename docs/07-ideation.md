@@ -134,6 +134,11 @@ neutral · somber · tense · warm · wry · excited · urgent · reflective
   conflicting headers). Therefore `tone.py` reads **`VORPAL_ANTHROPIC_KEY`**
   first (falling back to `ANTHROPIC_API_KEY` for plain-host use), and the
   container only ever gets the `VORPAL_`-prefixed name.
+- **How the key reaches the code** (provisioned 2026-06-07): it lives in the
+  Windows user environment as `VORPAL_ANTHROPIC_KEY`; `docker/run.ps1`
+  injects it into vorpal-box under the same name. `tone.py` constructs the
+  client explicitly — `anthropic.Anthropic(api_key=key)` — never via default
+  env resolution. Usage snippet + rules live in CLAUDE.md §Credentials.
 
 ### 2c. Realization — per-engine, capability-declared
 

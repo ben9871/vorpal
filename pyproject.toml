@@ -23,6 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# LLM-pass features (tone tagging) — optional: the deterministic core never
+# depends on a model. Baked into the vorpal-box image; on the host:
+# pip install -e .[llm]
+llm = ["anthropic>=0.40"]
 
 [project.scripts]
 vorpal = "vorpal.cli:main"
