@@ -100,6 +100,12 @@ correction *cheap* (edit one small file, re-run, only affected work redone).
 
 ## Quality bar (acceptance, at the product level)
 
+The regression set below is a **floor, not a ceiling**: the founding books prove the
+mechanisms, but the product claim is *any* book-shaped PDF, so the corpus grows with
+diverse real-world PDFs (lawfully sourced — see CLAUDE.md) and the bar applies to
+each addition. A book the pipeline can't handle must degrade to an honest review
+table, never to garbage output.
+
 The tool is "first class" when, on the regression set (Firestone scan + at least one
 born-digital PDF + one outline-less digital PDF):
 

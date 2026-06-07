@@ -20,3 +20,6 @@ voices-v*.bin
 *.mp3
 *.jpg
 *.png
+
+# Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
+corpus/

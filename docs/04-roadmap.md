@@ -91,6 +91,13 @@ lists every gate's result.
 
 ## Phase 5 — End-to-end hardening & release *(v1)*
 
+- **Corpus sweep:** pull a diverse set of lawful real-world PDFs (public-domain
+  scans from the Internet Archive, Project Gutenberg born-digital, etc. — see
+  CLAUDE.md "Expanding the test corpus") spanning scan qualities, layouts
+  (single page, two-page spread, multi-column), and structure sources (outline /
+  printed TOC / neither). Run the pipeline through segment on all of them and
+  end-to-end on a sample; fix what surfaces; minimize each breakage into a test.
+  Generalization is the point — a tool that only survives Firestone is not v1.
 - Run the full regression set end-to-end; fix what surfaces.
 - Duration-sanity and marker-count package gates; `--allow-gaps` escape hatch with
   audible markers.
@@ -99,7 +106,9 @@ lists every gate's result.
 
 **Accept when:** fresh clone → `pip install -e .` → `vorpal build` succeeds on all
 three regression books on Windows, meeting every product-level criterion in
-[02-product-vision.md](02-product-vision.md).
+[02-product-vision.md](02-product-vision.md); and on the corpus sweep, every book
+either builds clean or pauses at review with an honest, actionable table — never
+garbage output, never a crash.
 
 ---
 

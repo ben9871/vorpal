@@ -20,10 +20,15 @@ acceptance criteria) → `05-status.md` (now).
   torch + `-e .[dev]`). Python must be 3.10–3.12. `binaries.py` finds both
   tools on PATH; override with `VORPAL_TESSERACT`/`VORPAL_FFMPEG` if needed.
 - First TTS run downloads the Kokoro model (~300 MB) from HuggingFace — needs
-  network. On CPU, a full-book synth takes **hours** (GPU: ~25 min for the
-  Firestone book); for synth-touching work, smoke-test on
-  `scratch/outline.pdf`-sized books or `--end-page` slices, and treat the
-  full-book run as the final acceptance step.
+  network.
+- **Use the GPU whenever one is present** — even for small smoke tests; there
+  is no reason to wait on CPU synth when CUDA is available. Check with
+  `python -c "import torch; print(torch.cuda.is_available())"`; if it prints
+  `False` but the machine has an NVIDIA GPU, reinstall torch from the CUDA
+  index (https://pytorch.org/get-started/locally/) before doing synth work.
+  On CPU-only machines a full-book synth takes **hours** (GPU: ~25 min for
+  Firestone) — there, smoke-test on `scratch/outline.pdf`-sized books or
+  `--end-page` slices and treat the full-book run as the final acceptance step.
 - `scratch/` and `*_workdir/` are gitignored — artifacts mentioned in the
   status doc are regenerated, not cloned. Regenerate the digital regression
   books with `python scratch/make_regression_books.py` (or copy the generator
@@ -39,11 +44,31 @@ vorpal build <pdf> [--stop-after extract|segment] [--end-page N] [--output stem]
 vorpal review <pdf> [--output stem] [--approve]
 ```
 
+## Expanding the test corpus (encouraged)
+
+The committed regression set (Firestone scan + two generated digital books) is
+a **floor, not a ceiling** — the product goal is *any* book-shaped PDF, and
+work that only survives Firestone is not done. You may and should pull
+additional real-world PDFs to test against:
+
+- **Lawful sources only**: public-domain scans from the Internet Archive
+  (archive.org), Project Gutenberg PDFs, Wikisource/HathiTrust public-domain
+  works. Nothing pirated, nothing DRM'd.
+- Aim for **diversity, not volume**: different decades/publishers, single-page
+  vs two-page-spread scans, skewed/low-contrast scans, born-digital with and
+  without outlines, multi-column layouts, heavy-footnote academic books.
+- Put downloads in `corpus/` (gitignored — PDFs stay out of git). Record
+  provenance (title, source URL, why it was chosen) and per-book results in
+  `docs/06-corpus.md` (committed) so runs are reproducible from the notes.
+- A corpus book that breaks the pipeline is a *find*: minimize it into a unit
+  test or a small generated fixture (like `tests/test_regression_digital.py`
+  does) rather than committing the PDF.
+
 ## Working conventions
 
 - **One phase at a time**, in roadmap order; a phase is done only when its
   acceptance criteria in `docs/04-roadmap.md` pass on the regression set
-  (Firestone scan + the two generated digital books).
+  (Firestone scan + the two generated digital books — expanded per above).
 - Acceptance items marked **(human)** in the roadmap (listening spot-checks,
   real-player chapter-marker checks) cannot be self-verified: do everything
   machine-checkable, then list the pending human checks explicitly in
