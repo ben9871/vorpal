@@ -344,6 +344,12 @@ _SEGMENTER = pysbd.Segmenter(language="en", clean=False)
 PAUSE_PARAGRAPH_MS = 600
 PAUSE_SENTENCE_MS = 0
 
+# A sentence with no letters or digits cannot be narrated — it's a scene-break
+# ornament ('* * *'), a rule, or scan residue. It becomes a pause, never a
+# synthesis attempt (Kokoro returns nothing for symbol-only input, which the
+# retry→split→abort policy then correctly escalates into a build failure).
+_SPEAKABLE_RE = re.compile(r"[A-Za-z0-9]")
+
 
 def _sentences(text: str) -> list:
     protected = _protect_abbrevs(text)
@@ -381,6 +387,17 @@ def normalize_chapter(body: str, max_chars: int = 400,
         for s_i, sent in enumerate(sentences):
             sent = sent.strip()
             if not sent:
+                continue
+            if not _SPEAKABLE_RE.search(sent):
+                # ornament/divider → narrate nothing, breathe instead
+                if current:
+                    chunks.append(Chunk(idx, current, paragraph_pause_ms, None,
+                                        _text_hash(current)))
+                    idx += 1
+                    current = ""
+                elif chunks:
+                    chunks[-1].pause_after_ms = max(chunks[-1].pause_after_ms,
+                                                    paragraph_pause_ms)
                 continue
             is_last_sent = (s_i == len(sentences) - 1)
 
@@ -442,7 +459,11 @@ def assert_no_loss(body: str, chunks: list) -> None:
     for para in paras:
         normalized = spoken_form(para)
         sents = _sentences(normalized)
-        expected_parts.extend(s.strip() for s in sents if s.strip())
+        # unspeakable ornaments become pauses, not text — mirror the chunker
+        expected_parts.extend(
+            s.strip() for s in sents
+            if s.strip() and _SPEAKABLE_RE.search(s)
+        )
     expected = " ".join(expected_parts)
 
     c1 = _canonical(chunk_text)

@@ -255,6 +255,31 @@ def test_no_loss_invariant_fires_on_dropped_word():
         assert_no_loss(body, [bad_chunk])
 
 
+# ── unspeakable ornaments become pauses (Firestone '* * *' regression) ────
+
+def test_divider_paragraph_becomes_pause_not_chunk():
+    body = "First section ends here.\n\n* * *\n\nSecond section starts here."
+    chunks = normalize_chapter(body, max_chars=400)
+    assert all("*" not in c.text for c in chunks), \
+        "ornament must never reach the TTS engine"
+    # the divider's section break survives as a pause on the preceding chunk
+    assert chunks[0].pause_after_ms >= 600
+    assert_no_loss(body, chunks)            # invariant agrees ornaments aren't text
+
+
+def test_divider_fused_mid_paragraph_is_skipped():
+    body = "Before the break. * * *\n\nAfter the break it continues."
+    chunks = normalize_chapter(body, max_chars=400)
+    assert all("*" not in c.text for c in chunks)
+    assert "Before the break." in chunks[0].text
+    assert_no_loss(body, chunks)
+
+
+def test_divider_only_body_yields_no_chunks():
+    chunks = normalize_chapter("* * *", max_chars=400)
+    assert chunks == []
+
+
 # ── lint_chunks: junk-lint gate ───────────────────────────────────────────
 
 def test_lint_catches_pipe_fragment():

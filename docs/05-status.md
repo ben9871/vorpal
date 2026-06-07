@@ -23,28 +23,30 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 
 ## Phase 3 acceptance results
 
-- **Normalization unit suite:** 67 new tests, all green (138 total — up from 78).
+- **Normalization unit suite:** all green — **141 tests total** (78 before Phase 3).
   Table-driven coverage: numbers, ordinals, years, number ranges, roman numerals,
   abbreviations, em-dash, symbols, citation stripping, chunk packing, paragraph
-  pauses, no-loss invariant, junk-lint gate, no-sentence-split, v0 dotting regression.
+  pauses, no-loss invariant, junk-lint gate, no-sentence-split, v0 dotting
+  regression, unspeakable-ornament handling (see below).
 
-- **Full Firestone synth `failed: 0`:** **(human)** — autonomous agent cannot run
-  Kokoro TTS in this container. The synthesis loop, retry/split/abort policy, and
-  chunk cache are fully implemented and exercised by the import and unit paths.
-  A human operator should run:
-  ```
-  venv311\Scripts\vorpal.exe build firestone\firestone-shulamith-dialectic-sex-case-feminist-revolution.pdf --output scratch\firestone_p3
-  ```
-  and confirm `failed: 0` in the synthesis report.
+- **Full Firestone synth `failed: 0`:** ✅ verified on the GPU host. 1,919 chunks,
+  `done: 1919  cached: 84  retried: 0  failed: 0`; 8.3 h of audio, 11-chapter
+  248 MB M4B (`scratch\firestone_p3.m4b`). Notably, the *first* attempt **aborted
+  loudly** on chunk 85 — text `'* * *'`, a scan scene-break ornament Kokoro can't
+  voice — proving the retry→split→abort policy does its job on real data. Fix:
+  unspeakable sentences (no letters/digits) become paragraph pauses, never
+  synthesis attempts; `assert_no_loss` mirrors the rule. 3 regression tests added.
+  6 lint warnings on the full run, all benign (interior section headings narrated
+  in caps — correct behavior, surfaced for review as designed).
 
-- **Cache invalidation on chapter title edit:** **(human)** — edit one chapter title
-  in `book.json`, re-run `vorpal build`, observe that only the intro chunk for that
-  chapter is re-synthesized (all other chapter WAVs are reused from the content-
-  addressed cache). This is structurally guaranteed by the cache key
-  `(text_hash, engine, voice, speed, tone)`.
+- **Cache invalidation on chapter title edit:** ✅ verified — fixed the `Dialectcs`
+  outline typo in chapter 9's title + spoken_intro in `book.json`, re-ran the
+  build: `1918 cached, 1 to synthesize` — exactly the one intro chunk; only
+  chapter 9 reassembled; `failed: 0`.
 
-- **Listening spot-check:** **(human)** — 3 random 2-minute segments must contain no
-  narrated junk and no mid-sentence prosody breaks. Cannot be self-verified.
+- **Listening spot-check:** **(human, pending)** — 3 random 2-minute segments of
+  `scratch\firestone_p3.m4b` must contain no narrated junk and no mid-sentence
+  prosody breaks. Cannot be self-verified.
 
 ## What Phase 3 built
 
