@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 14 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 9 spike complete — Arc 3 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -28,10 +28,61 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | ✅ done | commit Phase 12 |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | ✅ done | commit Phase 13 |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | ✅ done | commit Phase 14 |
-| **Phase 9 — in-house voices (hands-on spike, playground-isolated)** | ⬅ **next** | roadmap |
+| Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit Phase 9 |
 
-**Next-up:** Phase **9** (in-house voices, playground-isolated spike).
-Full specs in [04-roadmap.md](04-roadmap.md).
+**Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
+listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
+
+## Phase 9 — In-house voice spike results
+
+**No code committed to `vorpal/`.** Experiments are playground-isolated per protocol.
+
+### What was done
+
+1. **Architecture analysis:** Kokoro-82M is a pure decoder — it has NO audio
+   encoder. Zero-shot voice cloning from target audio is architecturally impossible.
+   The speaker representation is an external [510, 1, 256] tensor; any valid tensor
+   is a valid voice.
+
+2. **Voice embedding PCA:** Computed PCA of the 16 English male voices. Top-2 PCs
+   explain 38.4% of variance; top-10 explain 79.4%. PC1 controls loudness/pace;
+   PC2 controls pitch/speed (neg=deep+fast, pos=high+slow).
+
+3. **Designed `vorpal_narrator_v1`:** PCA offset from the English-male mean:
+   `mean + 0.5·S₀·PC1 − 1.5·S₁·PC2`
+   - Duration: 14.2s vs bm_george 20.1s (**29% faster**)
+   - RMS: 0.0610 vs 0.0579 (5% louder/more forward)
+   - Pitch: 152 Hz vs 140 Hz (tenor vs baritone boundary)
+   - Character: clear, direct, efficient
+
+4. **Comparison audio** (playground-only, gitignored):
+   - `playground/final_vorpal_narrator_v1.wav` — designed voice
+   - `playground/final_bm_george_baseline.wav` — baseline
+   - `playground/final_bm_lewis_baseline.wav` — baseline
+
+5. **Approaches surveyed:** Kokoro PCA blend (done), StyleTTS2 (feasible, not
+   installed), Chatterbox/F5-TTS (blocked — voice cloning), Piper (not explored).
+   See `docs/08-voice-training-spike.md` for full analysis.
+
+### (human) acceptance items
+
+- **(human)** Listen to `playground/final_vorpal_narrator_v1.wav` vs
+  `playground/final_bm_george_baseline.wav`. Is the designed voice distinctly
+  different, natural, and better for non-fiction narration?
+- **(human)** If yes: name the voice and approve registry integration
+  (see `docs/08-voice-training-spike.md` §8 for the registry entry template).
+- **(human)** If no: the existing bm_george + bm_daniel blends are sufficient.
+  Consider running the StyleTTS2 spike in a follow-up session.
+
+### Protocol compliance
+
+- All experiments in `playground/` (gitignored)
+- No changes to `vorpal/`, voice registry, or committed pipeline
+- No voice cloning (no target speaker audio used)
+- No money spent
+- VRAM peak: ~400 MB (well under 80% of 6 GB limit)
+
+---
 
 ## Phase 14 acceptance results
 
@@ -415,20 +466,20 @@ vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth
 
 ## What to build next
 
-**Phase 14 — draft-mode builds (`--draft`)**
+**Arc 3 is complete.** Phases 10–14 done, Phase 9 spike done.
 
-Add a `--draft` flag to `vorpal build`. When active:
-- Skip the mastering step (no AAC, no chapter markers, no m4b container).
-- Emit a single concatenated `.wav` (or `.mp3` if ffmpeg present) containing
-  all included chapters in order.
-- The output file is `<stem>_draft.wav` next to the workdir.
-- Purpose: fast iteration when tweaking TTS settings, tone tags, or lexicon
-  entries — the round-trip is ~10× faster without mastering and the output
-  can be played immediately.
-- Acceptance: `vorpal build tests/fixtures/outline.pdf --draft --end-page 3`
-  produces a `.wav` file; duration ≥ 1 s; all pytest tests still green.
+### Pending human actions before new features
 
-**Phase 9 — in-house voices (playground-isolated spike)**
+1. **Phase 9 listening verdict** — play `playground/final_vorpal_narrator_v1.wav`
+   vs `playground/final_bm_george_baseline.wav`. Approve or reject registry integration.
+2. **Live tone tagging** — add API credits or authenticate `claude -p` to verify
+   Phase 8 live acceptance items.
+3. **Phase 7 OpenAI voices** — add `VORPAL_OPENAI_KEY` to test the APIEngine path.
 
-Playground-isolated experiment (`playground/` only, never shipped). See
-[04-roadmap.md](04-roadmap.md) for guardrails. Run last.
+### Proposed next phase: StyleTTS2 voice design (Phase 9b)
+
+If the PCA voice is approved and deeper novelty is wanted, a follow-up spike
+using StyleTTS2 (Apache-2.0, ~1.2 GB) could produce a voice with a genuinely
+different timbre by encoding a public-domain LibriVox reader's style and then
+optimizing an embedding toward a target character profile. This would take 2-3h
+on this GPU. See `docs/08-voice-training-spike.md` §6.
