@@ -227,8 +227,10 @@ def tts_all_chapters(
         ch_wav = chapters_dir / f"chapter_{ch_idx+1:02d}_{safe_filename(chapter['title'])}.wav"
 
         if ch_wav.exists():
-            data, sr = sf.read(str(ch_wav))
-            duration_ms = int(len(data) / sr * 1000)
+            # header-only probe — sf.read() here loaded the whole chapter as
+            # float64 (~1 GB for a 90-minute chapter) just to get a duration
+            info = sf.info(str(ch_wav))
+            duration_ms = int(info.frames / info.samplerate * 1000)
             results.append({"title": chapter["title"], "wav": ch_wav,
                              "duration_ms": duration_ms})
             report_cached += len(all_chunks)
@@ -316,23 +318,29 @@ def tts_all_chapters(
             print("  !! No audio for this chapter — skipping")
             continue
 
-        # Assemble chapter WAV from cached chunk files + pauses
-        all_audio = []
+        # Assemble chapter WAV from cached chunk files + pauses, streaming —
+        # never the whole chapter in RAM (a long chapter is ~0.5 GB of floats)
+        total_frames = 0
         sample_rate = None
-        for wav_path, pause_ms in chunk_wavs:
-            data, sr = sf.read(str(wav_path), dtype="float32")
-            sample_rate = sr
-            all_audio.append(data)
-            if pause_ms > 0:
-                silence = np.zeros(int(pause_ms / 1000 * sr), dtype="float32")
-                all_audio.append(silence)
-            else:
-                # Short inter-chunk gap (50 ms) for natural breath
-                all_audio.append(np.zeros(int(0.05 * sr), dtype="float32"))
+        out_handle = None
+        try:
+            for wav_path, pause_ms in chunk_wavs:
+                data, sr = sf.read(str(wav_path), dtype="float32")
+                if out_handle is None:
+                    sample_rate = sr
+                    out_handle = sf.SoundFile(str(ch_wav), mode="w",
+                                              samplerate=sr, channels=1)
+                out_handle.write(data)
+                total_frames += len(data)
+                gap_ms = pause_ms if pause_ms > 0 else 50   # 50 ms breath default
+                silence = np.zeros(int(gap_ms / 1000 * sr), dtype="float32")
+                out_handle.write(silence)
+                total_frames += len(silence)
+        finally:
+            if out_handle is not None:
+                out_handle.close()
 
-        combined = np.concatenate(all_audio)
-        sf.write(str(ch_wav), combined, sample_rate)
-        duration_ms = int(len(combined) / sample_rate * 1000)
+        duration_ms = int(total_frames / sample_rate * 1000)
         total_elapsed = int(time.time() - tts_start)
         results.append({"title": chapter["title"], "wav": ch_wav,
                         "duration_ms": duration_ms})

@@ -175,12 +175,14 @@ Regression set, all via `vorpal build … --stop-after segment`:
   The `test_compile_m4b_integration` test asserts this with ±150 ms tolerance
   for AAC frame-boundary rounding.
 
-- **Full Firestone mastering:** **(human, pending)** — run
-  `vorpal build firestone/... --output scratch/firestone_p4` against the
-  existing `firestone_p3_workdir/` (chapters already synthesized; mastering
-  picks them up without re-synthesis). Verify: (a) no re-synthesis triggered,
-  (b) `report.md` shows all chapters PASS loudness gate, (c) M4B file size and
-  peak RSS below 1 GB. Cannot be self-verified in this environment.
+- **Full Firestone mastering:** ✅ verified on the host — no re-synthesis
+  triggered (straight to `[5/5]`), 11/11 chapters PASS the loudness gate
+  (−25.5 → −18.0 LUFS), 233 MB M4B + `chapters_mp3/` + `report.md` produced.
+  **Peak python RSS: 65.9 MB** (< 1 GB gate) — after fixing two RAM hogs the
+  in-container agent couldn't observe: the chapter-reuse path `sf.read()` the
+  whole WAV as float64 just for a duration (→ `sf.info()`, header-only), and
+  chapter assembly concatenated all chunks in RAM (→ streamed `sf.SoundFile`
+  writes). First honest measurement was 1,279 MB — a real gate failure.
 
 - **Chapter markers in real player:** ✅ verified by the user (2026-06-07) —
   chapter navigation in VLC lands at chapter starts on the mastered
