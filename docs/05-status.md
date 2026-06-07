@@ -28,10 +28,14 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | ✅ done | commit Phase 12 |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | ✅ done | commit Phase 13 |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | ✅ done | commit Phase 14 |
-| Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit Phase 9 |
+| Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit `e8278e0` |
+| **Arc 4: Phases 15–20** (parallel OCR · batched TTS · OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
+**Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
+resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
+Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
 
 ## Phase 9 — In-house voice spike results
 

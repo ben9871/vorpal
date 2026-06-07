@@ -353,6 +353,90 @@ ends with a go/no-go + proposed integration plan.
 
 ---
 
+# Arc 4 — Scale, repair & the product shape *(next unsupervised day)*
+
+*(Added 2026-06-07 as the run that built Arc 3 finished in under an hour — the
+queue needs more depth. Same protocol as Arc 3: numeric order, one
+`Phase N: …` commit + status update per phase, host-verified, reversible, no
+spend / no remote push, mark blocked/human honestly, stop-clean-with-a-proposal
+if you run dry. Arc 4 **opens by resolving the `cli` tone-backend auth** —
+`claude -p` inside the container wanted a `/login` (HANDOFF-NOTES §1); if it
+needs interactive login the agent can't do unsupervised, mark it `(human)` and
+proceed. Order: 15 → 16 → 17 → 18 → 19 → 20.)*
+
+## Phase 15 — Parallel page OCR *(biggest wall-clock win)*
+
+- OCR is the slowest stage; parallelize page extraction across a process pool
+  (`concurrent.futures.ProcessPoolExecutor`), worker count from CPU budget.
+  Pages are independent — the page model already isolates them. Deterministic
+  output order preserved; per-page QA unchanged.
+
+**Accept when:** Firestone extraction is markedly faster (record before/after
+wall-clock) with byte-identical `pages.jsonl` vs serial; worker count
+cpu-bounded; unit test on the dispatch/ordering with a stub extractor.
+
+## Phase 16 — Batched TTS on GPU *(synthesis throughput)*
+
+- Synthesize multiple chunks per GPU call where the engine supports it;
+  respects the chunk cache (only uncached chunks batched) and the
+  retry→split→abort policy per chunk. Falls back to serial on CPU.
+
+**Accept when:** a Firestone chapter synthesizes faster batched than serial on
+GPU (record numbers), `failed: 0`, cache hits unchanged, output audio
+equivalent; serial path untouched on CPU.
+
+## Phase 17 — LLM-assisted OCR repair *(the scalpel)*
+
+- Optional pass (`--repair`, tone-backend infra, `cli`/subscription default):
+  for blocks flagged low-confidence by extraction QA, send the mangled text
+  **with surrounding clean context** to the model, get a proposed repair,
+  **show the diff in review** for approval. Deterministic core untouched — no
+  `--repair` ⇒ byte-identical output; repairs are opt-in, diff-shown, never
+  silently applied.
+
+**Accept when:** on a low-quality scan, mangled passages get plausible repair
+proposals surfaced in review (not auto-applied); approve/reject round-trips
+through the manifest; build without `--repair` unchanged; logic unit-tested
+with a mock backend.
+
+## Phase 18 — Library / batch mode *(folder → shelf)*
+
+- `vorpal build <dir>` (or `vorpal library <dir>`): discover book files, build
+  each over the existing content-addressed cache, continue past a single book's
+  failure (record it, don't abort the shelf), emit a library-level summary.
+  This turns the autonomous muscle into a product feature.
+
+**Accept when:** pointing at a directory of 3+ mixed-format books builds each
+to M4B (or pauses each at review honestly), one book's failure doesn't sink
+the rest, a `library_report.md` lists per-book status; resume skips
+already-built books via cache.
+
+## Phase 19 — Manifest as a first-class artifact *(other renderers)*
+
+- The cleaned `book.json` + chapter bodies are a structured edition, not just a
+  build file. Add a renderer: `vorpal export <input> --as epub|txt` emits a
+  clean reading EPUB / structured text from the manifest (chapters, front/back
+  matter, footnotes as a side-channel) — no audio. Proves the manifest is the
+  real asset; the audiobook becomes one renderer of many.
+
+**Accept when:** a built book exports to a valid clean EPUB (opens in a reader,
+correct chapter nav) and a structured TXT; footnotes present but separated;
+round-trips through the same manifest the audiobook uses.
+
+## Phase 20 — Corpus-hardening loop *(generalization, loop-until-dry)*
+
+- Pull a wider, more hostile corpus (multi-column journals, heavy-footnote
+  academic books, non-English public-domain, poor scans) per the
+  `06-corpus.md` recipe; run each through `--stop-after segment`; for every
+  breakage, **minimize it into a small fixture test** and fix. Loop until a
+  round surfaces nothing new. Record every book + result in `06-corpus.md`.
+
+**Accept when:** ≥ 8 new diverse books processed without crash or garbage (each
+builds clean or pauses honestly at review); every breakage found became a
+committed regression test; `06-corpus.md` updated.
+
+---
+
 ## Far future (thought about, deliberately not planned)
 
 - **A visual layer / exe.** Bottom of the priority list by decision
