@@ -1,78 +1,66 @@
-"""Unit tests for v0-ported cleanup and chapter splitting.
+"""Integration tests for the segment stage driver (segment_pages).
 
-These pin the *intended* stable behaviors. The heading heuristics themselves
-are known-bad (docs/01-audit.md §2) and will be replaced in Phase 2, at which
-point the splitting tests get rewritten against the new cascade.
+The v0 regex-splitting tests this file used to hold died with the v0 logic;
+unit coverage for each sub-stage lives in test_boilerplate / test_footnotes /
+test_repair / test_chapters. This file checks they compose.
 """
 
-from audiobooker.segment import (
-    clean_raw_text,
-    find_headings,
-    is_likely_toc,
-    split_into_chapters,
-)
+from audiobooker.extract.pagemodel import Block, Page
+from audiobooker.segment import Section, segment_pages
 
-BODY_80_WORDS = (
-    "This is substantial body text that goes on for a while. " * 12
-).strip()
+W, H = 600, 800
+PARA = ("Plain body prose, the kind a narrator should read aloud. " * 8).strip()
 
 
-def test_clean_removes_page_break_sentinels_and_page_numbers():
-    raw = "Some text here.\n\n--- PAGE BREAK ---\n\n42\nMore text follows."
-    cleaned = clean_raw_text(raw)
-    assert "PAGE BREAK" not in cleaned
-    assert "\n42\n" not in cleaned
-    assert "Some text here." in cleaned
-    assert "More text follows." in cleaned
+def page(index, blocks):
+    return Page(index=index, kind="digital", width=W, height=H, blocks=blocks)
 
 
-def test_clean_repairs_hyphenated_linebreaks():
-    raw = "the feminist revo-\nlution had begun"
-    assert "revolution" in clean_raw_text(raw)
+def make_book(titles, pages_per_chapter=3):
+    pages, outline = [], []
+    idx = 0
+    for n, title in enumerate(titles, 1):
+        outline.append({"level": 1, "title": title, "page": idx + 1})
+        for j in range(pages_per_chapter):
+            blocks = []
+            blocks.append(Block(bbox=(60, 20, 400, 32),
+                                text=f"{idx + 10} THE RUNNING HEADER"))
+            if j == 0:
+                blocks.append(Block(bbox=(72, 90, 400, 120),
+                                    text=title.upper(), font_size=18.0))
+            blocks.append(Block(bbox=(72, 200, 540, 600),
+                                text=f"{PARA} (page {idx}.)", font_size=11.0))
+            blocks.append(Block(bbox=(290, 760, 310, 775), text=str(idx + 10)))
+            pages.append(page(idx, blocks))
+            idx += 1
+    return pages, outline
 
 
-def test_clean_strips_given_running_headers():
-    raw = "THE DIALECTIC OF SEX\nactual body text continues here"
-    cleaned = clean_raw_text(raw, header_patterns=["THE DIALECTIC OF SEX"])
-    assert "DIALECTIC" not in cleaned
-    assert "actual body text" in cleaned
+def test_segment_pages_composes_all_stages():
+    pages, outline = make_book(["First Movement", "Second Movement"])
+    result = segment_pages(pages, outline=outline)
+
+    assert result.source == "outline"
+    chapters = [s for s in result.sections if s.kind == "chapter"]
+    assert [s.title for s in chapters] == ["First Movement", "Second Movement"]
+
+    all_bodies = "\n".join(result.bodies[s.id] for s in chapters)
+    assert "RUNNING HEADER" not in all_bodies          # boilerplate gone
+    assert "(page 0.)" in all_bodies                   # body text kept
+    assert "(page 5.)" in all_bodies
+
+    qa = result.qa
+    assert qa["chapter_source"] == "outline"
+    assert qa["header_lines_removed"] >= 6
+    assert qa["page_number_lines_removed"] >= 6
 
 
-def test_find_headings_detects_chapter_lines():
-    text = "intro text\n\nCHAPTER ONE\nThe Beginning\n\nbody text follows here"
-    headings = find_headings(text)
-    assert headings, "expected at least one heading"
-    assert any("CHAPTER" in title for _, title in headings)
-
-
-def test_split_keeps_real_chapters_and_skips_short_junk():
-    text = (
-        f"CHAPTER ONE\n\n{BODY_80_WORDS}\n\n"
-        f"RANDOM CAPS LINE\n\nshort junk body\n\n"
-        f"CHAPTER TWO\n\n{BODY_80_WORDS}"
-    )
-    chapters = split_into_chapters(text)
-    kept = [c for c in chapters if not c["skip"]]
-    skipped = [c for c in chapters if c["skip"]]
-    assert len(kept) == 2
-    assert any("short junk" in c["body"] for c in skipped)
-
-
-def test_split_without_headings_returns_single_chapter():
-    chapters = split_into_chapters("Just plain prose with no headings at all.")
-    assert len(chapters) == 1
-    assert chapters[0]["skip"] is False
-
-
-def test_is_likely_toc_on_dot_leaders():
-    toc = (
-        "Chapter One .......... 3\n"
-        "Chapter Two .......... 27\n"
-        "Chapter Three ........ 55\n"
-        "Chapter Four ......... 89\n"
-    )
-    assert is_likely_toc(toc) is True
-
-
-def test_is_likely_toc_on_prose():
-    assert is_likely_toc(BODY_80_WORDS + "\nMore lines.\nAnd more.\nAnd more.") is False
+def test_segment_result_round_trips_through_manifest_dicts():
+    pages, outline = make_book(["Alpha Section", "Omega Section"])
+    result = segment_pages(pages, outline=outline)
+    dicts = [s.to_dict() for s in result.sections]
+    restored = [Section.from_dict(d) for d in dicts]
+    assert [(s.id, s.title, s.kind, s.include, s.start, s.end)
+            for s in restored] == \
+           [(s.id, s.title, s.kind, s.include, s.start, s.end)
+            for s in result.sections]

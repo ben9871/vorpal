@@ -32,10 +32,15 @@ def tts_all_chapters(chapters: list, audio_dir: Path, chapters_dir: Path,
     active_chapters = [c for c in chapters if not c["skip"]]
     max_chars = engine.max_chunk_chars
 
+    def announcement_for(ch_idx, chapter):
+        # Manifest-provided spoken intro ("Conclusion.") beats the numbered
+        # default, which is wrong for prefaces/conclusions (audit §2).
+        return chapter.get("spoken_intro") or f"Chapter {ch_idx + 1}. {chapter['title']}."
+
     # Count total chunks upfront for global progress
     chapter_chunk_counts = []
     for ch_idx, chapter in enumerate(active_chapters):
-        ann = split_into_chunks(f"Chapter {ch_idx + 1}. {chapter['title']}.", max_chars)
+        ann = split_into_chunks(announcement_for(ch_idx, chapter), max_chars)
         body = split_into_chunks(chapter["body"], max_chars)
         chapter_chunk_counts.append(len(ann) + len(body))
     total_chunks = sum(chapter_chunk_counts)
@@ -64,7 +69,7 @@ def tts_all_chapters(chapters: list, audio_dir: Path, chapters_dir: Path,
             results.append({"title": chapter["title"], "wav": ch_wav, "duration_ms": duration_ms})
             continue
 
-        announcement = f"Chapter {ch_idx + 1}. {chapter['title']}."
+        announcement = announcement_for(ch_idx, chapter)
         announce_chunks = split_into_chunks(announcement, max_chars)
         body_chunks = split_into_chunks(chapter["body"], max_chars)
         all_chunks = announce_chunks + body_chunks
