@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 10 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 11 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -24,7 +24,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 7 — first tone-capable engine (credential gate) | ✅ done (pending live acceptance) | commit `5def893` |
 | Phase 8 — tone tagging + effectiveness gates (`--expressive`) | ✅ done (pending live + human acceptance) | commit `0aa56d8` |
 | Arc 3: Phase 10 — Arc 2 hardening & self-review | ✅ done | commit Phase 10 |
-| **Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict)** | ⬅ **next** | roadmap |
+| Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | ✅ done (pending live acceptance) | commit Phase 11 |
+| **Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`)** | ⬅ **next** | roadmap |
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
@@ -37,6 +38,67 @@ protocol** in [`CLAUDE.md`](../CLAUDE.md): commit + status-update per phase, no
 spend / no big downloads / no remote pushes / no irreversible ops, mark blocked
 honestly, and if you run out of work write a proposal and stop cleanly. The
 `cli` tone backend (subscription) means Phase 11 needs **no API money**.
+
+## Phase 11 acceptance results
+
+**349 tests green** (349 = 337 Phase-10 + 12 new in `test_phase11.py`).
+
+### What was built
+
+- `vorpal/qa/__init__.py` + `vorpal/qa/tone_eval.py` — tone effectiveness module:
+  - `measure_audio(audio, sample_rate)` → `{energy_rms, duration_s, dominant_freq_hz}` (uses scipy.signal.welch; numpy FFT fallback)
+  - `run_acoustic_gate(engine, text)` → per-tone `ToneDeltaResult` (passes, dur_diff, rms_diff, speed_multiplier)
+  - `gate_summary(results)` → verdict, pass/fail/unexpected-fail lists
+  - `write_ab_kit(neutral, expressive, sr, out_dir, title)` → writes 16-bit WAVs + cumulative manifest.json
+  - `format_gate_report(results, summary)` → Markdown table
+- `pyproject.toml` gains `[audio]` extra: `scipy>=1.10` (already installed in container)
+
+### Acoustic-delta gate — real Kokoro synthesis on GPU (CUDA)
+
+Test passage: 265-char excerpt from Firestone Chapter 1 (neutral duration = 13.4 s).
+
+| Tone | Speed | dur_diff | rms_diff | Gate |
+|------|-------|----------|----------|------|
+| excited | 1.12 | 0.0690 | 0.0035 | PASS |
+| reflective | 0.90 | 0.0727 | 0.0039 | PASS |
+| somber | 0.88 | 0.0915 | 0.0030 | PASS |
+| tense | 1.10 | 0.0541 | 0.0022 | PASS |
+| urgent | 1.15 | 0.0896 | 0.0072 | PASS |
+| warm | 0.95 | 0.0360 | 0.0008 | FAIL |
+| wry | 1.00 | 0.0000 | 0.0000 | FAIL (expected — no speed delta) |
+
+**Overall: 5/7 PASS.** `warm` (speed=0.95) fails — the 5% speed shift is too
+small to reliably clear the 5% dur_diff threshold on this Kokoro model.
+`wry` fails by design (KokoroApprox uses speed only; wry has no speed delta).
+This is an honest finding: the approximation layer's expressiveness for `warm`
+and `wry` is below the acoustic measurement threshold. These tones would need
+a real API engine (OpenAI gpt-4o-mini-tts) or pitch-shift to realize distinctly.
+
+### Demo A/B kit
+
+A demo A/B kit (neutral vs somber, real Kokoro) was generated to
+`scratch/ab_kit_demo/` (gitignored):
+- `neutral_firestone_ch1_neutral_vs_somber.wav` (24.3 s)
+- `expressive_firestone_ch1_neutral_vs_somber.wav` (26.8 s — 10.3% longer, confirming gate)
+- `manifest.json` records pairing
+
+### (blocked) live acceptance items
+
+- **(blocked: claude -p not authenticated in container)** Live tone tagging of
+  Firestone and corpus books — `claude -p` requires login (`/login` in Claude
+  Code session). Fix: run `claude /login` before the tone pass, or use
+  `--tone-backend api` with `VORPAL_ANTHROPIC_KEY` (zero credits).
+- **(blocked: same)** haiku-vs-sonnet tag quality comparison.
+- **(blocked: same)** Neutral fraction ≳ 60% assertion (depends on live tags).
+- **(blocked: same)** Full A/B kit with LLM-tagged expressive audio (demo kit
+  above uses manually-assigned somber tone, not LLM tags).
+
+### (human) acceptance items
+
+- **(human)** Blind listening verdict on the A/B kit — the feature stays
+  `--expressive` opt-in until the human verdict comes in.
+
+---
 
 ## Phase 10 acceptance results
 
