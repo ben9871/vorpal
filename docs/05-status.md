@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 11 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-07 (Phase 12 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -25,7 +25,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 8 — tone tagging + effectiveness gates (`--expressive`) | ✅ done (pending live + human acceptance) | commit `0aa56d8` |
 | Arc 3: Phase 10 — Arc 2 hardening & self-review | ✅ done | commit Phase 10 |
 | Arc 3: Phase 11 — tone effectiveness materials (eval, no human verdict) | ✅ done (pending live acceptance) | commit Phase 11 |
-| **Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`)** | ⬅ **next** | roadmap |
+| Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | ✅ done | commit Phase 12 |
+| **Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`)** | ⬅ **next** | roadmap |
 | Arc 3: Phase 12 — ASR round-trip QA (`--asr-check`) | queued | roadmap |
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | queued | roadmap |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | queued | roadmap |
@@ -38,6 +39,41 @@ protocol** in [`CLAUDE.md`](../CLAUDE.md): commit + status-update per phase, no
 spend / no big downloads / no remote pushes / no irreversible ops, mark blocked
 honestly, and if you run out of work write a proposal and stop cleanly. The
 `cli` tone backend (subscription) means Phase 11 needs **no API money**.
+
+## Phase 12 acceptance results
+
+**372 tests green** (372 = 349 Phase-11 + 23 new in `test_phase12.py`).
+
+### What was built
+
+- `vorpal/qa/asr.py`:
+  - `compute_wer(reference, hypothesis)` — word-level edit-distance WER
+  - `sample_chunks(chunks, fraction)` — even-spaced sampling, skips short chunks
+  - `transcribe_audio(audio, sample_rate, model)` — Whisper transcription with
+    16 kHz resampling via scipy.signal
+  - `run_asr_check(chunk_results, ...)` — per-chunk transcription + WER
+  - `check_chapters(chapter_entries, ...)` — chapter-level ASR check using
+    chapter WAV paths; does not require per-chunk WAV boundaries
+  - `format_asr_report(results, ...)` — Markdown section for report.md
+  - `ChunkASRResult` dataclass: chunk_idx, chapter, wer, transcript, outlier flag
+
+- `cli.py`: `--asr-check` flag + `--asr-model` (tiny/base/small) + `--asr-fraction`
+  (default 0.10). After synthesis, `check_chapters` runs on the sampled chapters;
+  outliers listed in console and appended to report.md.
+
+### Live acceptance evidence
+
+ASR round-trip on real Kokoro synthesis (GPU):
+- Text: "The old house stood at the end of the lane."
+- Kokoro synthesized: 2.67 s audio
+- Whisper base transcribed: "The old house stood at the end of the lane."
+- **WER: 0.000** — perfect round-trip on this sentence.
+
+Whisper base model downloaded (~139 MB) to `~/.cache/whisper/`.
+Full-chapter WER on Firestone blocked (requires full build; not run — consistent
+with the protocol that full-book runs are acceptance/corpus activities, not tests).
+
+---
 
 ## Phase 11 acceptance results
 

@@ -87,6 +87,15 @@ def build_parser() -> argparse.ArgumentParser:
                             "classification workhorse; sonnet to compare tag quality "
                             "in the effectiveness eval). Never Opus — tagging is a "
                             "weak-model task on either backend.")
+    build.add_argument("--asr-check", action="store_true",
+                       help="After synthesis, transcribe a sample of chunks with "
+                            "Whisper and compute word-error rate; outliers are listed "
+                            "in report.md (requires openai-whisper, slow on CPU)")
+    build.add_argument("--asr-model", default="base",
+                       choices=["tiny", "base", "small"],
+                       help="Whisper model for --asr-check (default: base ~74 MB)")
+    build.add_argument("--asr-fraction", type=float, default=0.10, metavar="FRAC",
+                       help="Fraction of chunks to transcribe (default: 0.10 = 10 %%)")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -339,6 +348,33 @@ def cmd_build(args) -> None:
     if not chapter_results:
         sys.exit("ERROR: No audio generated.")
 
+    # ── Optional: ASR round-trip QA (--asr-check) ────────
+    asr_results_all = []
+    if getattr(args, "asr_check", False):
+        from .qa.asr import check_chapters, format_asr_report
+        asr_fraction = getattr(args, "asr_fraction", 0.10)
+        asr_model_name = getattr(args, "asr_model", "base")
+        print(f"\n[4.5/5] ASR round-trip QA (Whisper {asr_model_name}, "
+              f"{asr_fraction:.0%} sample)...")
+        # Build chapter entries: pair synthesized WAV with the source body text
+        body_lookup = {c["title"]: c["body"] for c in chapters if not c["skip"]}
+        chapter_entries = [
+            {
+                "title": r["title"],
+                "wav_path": r["wav"],
+                "body_text": body_lookup.get(r["title"], ""),
+            }
+            for r in chapter_results
+        ]
+        asr_results_all = check_chapters(
+            chapter_entries,
+            model_name=asr_model_name,
+            sample_fraction=asr_fraction,
+        )
+        outliers = [r for r in asr_results_all if r.outlier]
+        print(f"  Sampled {len(asr_results_all)} chapter(s), "
+              f"{len(outliers)} outlier(s) (WER > 30 %)")
+
     # ── Step 5: Mastering & packaging ─────────────────
     settings = manifest.settings
     target_lufs = float(settings.get("target_lufs", -18.0))
@@ -363,6 +399,18 @@ def cmd_build(args) -> None:
 
     if not args.keep_temp:
         shutil.rmtree(audio_dir, ignore_errors=True)
+
+    # Append ASR section to report.md if check was run
+    if asr_results_all:
+        from .qa.asr import format_asr_report
+        report_path = Path(f"{output_stem}_report.md")
+        asr_section = format_asr_report(
+            asr_results_all,
+            sample_fraction=getattr(args, "asr_fraction", 0.10),
+            model_name=getattr(args, "asr_model", "base"),
+        )
+        with open(report_path, "a", encoding="utf-8") as f:
+            f.write(asr_section + "\n")
 
     print("\n" + "=" * 58)
     print(f"  Done!  ->  {final}")
