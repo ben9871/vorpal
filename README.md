@@ -11,7 +11,8 @@ Converts book PDFs into navigable `.m4b` audiobooks using TTS voice models.
 > 1. [Audit of the v0 implementation](docs/01-audit.md) — what's wrong, with evidence
 > 2. [Product vision & scope](docs/02-product-vision.md) — what we're building (voice cloning is dropped)
 > 3. [Target architecture](docs/03-architecture.md) — the 8-stage, manifest-driven design
-> 4. [Implementation roadmap](docs/04-roadmap.md) — 6 phases with acceptance criteria; **next: Phase 2 (segmentation)**
+> 4. [Implementation roadmap](docs/04-roadmap.md) — 6 phases with acceptance criteria
+> 5. [**Status & handoff**](docs/05-status.md) — where we are, what's next (Phase 2), environment notes
 
 ## Setup
 
