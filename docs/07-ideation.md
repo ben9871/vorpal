@@ -114,6 +114,27 @@ neutral · somber · tense · warm · wry · excited · urgent · reflective
   contract as chapter review. Tone histogram lands in `report.md`.
 - Confidence: tagger emits per-tag confidence; low-confidence → neutral.
 
+**Tagging backend decision (2026-06-07):**
+
+- **Primary: Anthropic API via the official `anthropic` SDK, model `claude-haiku-4-5`**
+  — paragraph tone classification is a Haiku-shaped task. Submit per-chapter via
+  the **Batches API** (50 % off; tagging is never latency-sensitive). Escalate to
+  `claude-sonnet-4-6` only if Haiku's tags fail the effectiveness eval (§2d).
+- **Cost reality** (Firestone-sized book, ~150–200k input tokens, tiny outputs):
+  Haiku ≈ $0.20/book, ≈ $0.10 batched; Sonnet ≈ $0.60; the tagging cache means
+  each book pays **once ever**. A $5 minimum credit purchase tags ~25–50 books.
+- **Fallback (zero billing setup): shell out to `claude -p --model haiku`** —
+  print-mode Claude Code uses the existing subscription OAuth token; works on
+  host and inside vorpal-box. Slower, subscription-limited, subprocess
+  dependency — acceptable because tagging runs once per book.
+- **Credential hygiene:** the Claude Code OAuth token (agent runs) and the
+  API key (product features) stay **separate** — different blast radii and
+  rotation stories. ⚠️ Inside vorpal-box, a bare `ANTHROPIC_API_KEY` env var
+  can hijack the agent's own auth (Claude Code/SDKs prefer it or send
+  conflicting headers). Therefore `tone.py` reads **`VORPAL_ANTHROPIC_KEY`**
+  first (falling back to `ANTHROPIC_API_KEY` for plain-host use), and the
+  container only ever gets the `VORPAL_`-prefixed name.
+
 ### 2c. Realization — per-engine, capability-declared
 
 The tag means nothing until an engine *does* something with it. Realization
