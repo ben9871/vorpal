@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Force re-segmentation (boilerplate/chapters)")
     build.add_argument("--redo-tts",    action="store_true",
                        help="Delete existing chapter WAVs and re-synthesise")
+    build.add_argument("--allow-gaps", action="store_true",
+                       help="Insert audible beep markers for failed chunks instead of aborting")
     build.add_argument("--stop-after", choices=["extract", "segment"], default=None,
                        help="Stop the build after the named stage (inspection runs)")
 
@@ -234,7 +236,8 @@ def cmd_build(args) -> None:
             f.unlink()
 
     engine = KokoroEngine(voice=args.voice, speed=args.speed)
-    chapter_results = tts_all_chapters(chapters, audio_dir, chapters_dir, engine)
+    chapter_results = tts_all_chapters(chapters, audio_dir, chapters_dir, engine,
+                                       allow_gaps=getattr(args, "allow_gaps", False))
 
     if not chapter_results:
         sys.exit("ERROR: No audio generated.")

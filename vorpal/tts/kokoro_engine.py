@@ -1,5 +1,7 @@
 """Kokoro TTS engine — the default (and currently only) engine."""
 
+from typing import Optional
+
 from .base import TTSEngine
 
 KOKORO_VOICES = [
@@ -13,6 +15,7 @@ class KokoroEngine(TTSEngine):
     name = "kokoro"
     sample_rate = 24000
     max_chunk_chars = 400
+    supported_tones = ()   # Kokoro ignores tone hints
 
     def __init__(self, voice: str = "af_heart", speed: float = 1.0):
         self.voice = voice
@@ -28,7 +31,7 @@ class KokoroEngine(TTSEngine):
             self._pipeline = KPipeline(lang_code="a")
         return self._pipeline
 
-    def synthesize(self, text: str):
+    def synthesize(self, text: str, tone: Optional[str] = None):
         import numpy as np
         import torch
 
