@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 in progress — Phase 18 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 in progress — Phase 19 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -33,13 +33,56 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 4: Phase 16 — batched TTS on GPU | ✅ done | commit Phase 16 |
 | Arc 4: Phase 17 — LLM-assisted OCR repair (`--repair`) | ✅ done (pending live LLM call) | commit Phase 17 |
 | Arc 4: Phase 18 — library / batch mode (`vorpal library`) | ✅ done | commit Phase 18 |
-| **Arc 4: Phases 19–20** (manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 19 — manifest as first-class artifact (`vorpal export`) | ✅ done | commit Phase 19 |
+| **Arc 4: Phase 20** (corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
 **Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
 resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 19 acceptance results
+
+**519 tests green** (519 = 490 Phase-18 + 29 new in `test_phase19.py`).
+
+### What was built
+
+- `vorpal/export.py` (new module):
+  - `get_chapter_body(section, work_dir, safe_filename_fn)` — returns body from
+    inline `section.body` (EPUB/TXT source) or from `chapter_texts/<fn>.txt`
+    (PDF source); falls back to empty string if neither is available
+  - `load_footnotes(work_dir)` — reads `footnotes.json`; returns `[]` when absent
+  - `export_txt(sections, work_dir, output_path, safe_filename_fn)` — writes
+    structured plain text: `# Title` headings, body paragraphs, footnote block
+    at end; skips excluded and empty-body sections
+  - `export_epub(sections, work_dir, output_path, title, author, safe_filename_fn)` —
+    writes minimal valid EPUB 3 zip: mimetype (uncompressed, first),
+    `META-INF/container.xml`, `OEBPS/package.opf`, `OEBPS/nav.xhtml`,
+    `OEBPS/chapter_NNN.xhtml` per included section
+  - `_xml_escape(text)` — escapes `&`, `<`, `>`, `"` for XHTML
+  - Internal builders: `_container_xml`, `_package_opf`, `_nav_xhtml`,
+    `_chapter_xhtml`
+
+- `vorpal/cli.py`:
+  - `export` subcommand: `input`, `--as epub|txt` (required), `--output`,
+    `--workdir-output`
+  - `cmd_export(args)` — loads manifest, resolves sections, dispatches to
+    `export_txt` or `export_epub`, prints result path
+
+### Acceptance
+
+- Body retrieval: inline > chapter_texts fallback > empty string
+- TXT: chapter headings, bodies, excluded sections skipped, footnote block
+  appended when present
+- EPUB: valid zip, correct file list, mimetype first and uncompressed (ZIP_STORED),
+  chapter count matches included sections, title/author in OPF, chapter links in nav
+- XML escaping: `&`, `<`, `>`, `"` all escaped
+- Parser: `export` subcommand, `--as` required, `--output` optional
+- End-to-end: 3-chapter TXT book built to segment then exported to TXT and EPUB;
+  EPUB is valid zipfile with correct structure
+
+---
 
 ## Phase 18 acceptance results
 
@@ -613,7 +656,7 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 490 passed
+python -m pytest -q                  # should be 519 passed
 
 # Verify Phase 14:
 vorpal build tests/fixtures/outline.pdf --draft --end-page 3

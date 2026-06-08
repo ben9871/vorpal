@@ -134,6 +134,17 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Print OCR repair proposals (requires a prior "
                              "--repair build); edit book.json to approve/reject")
 
+    export = sub.add_parser("export",
+                            help="Export a built book to EPUB or plain text")
+    export.add_argument("input", help="Input file that was built (PDF, EPUB, or TXT)")
+    export.add_argument("--as", dest="format", choices=["epub", "txt"], required=True,
+                        help="Output format: epub (reading EPUB 3) or txt (structured text)")
+    export.add_argument("--output", default=None,
+                        help="Output filename (default: <stem>.<format>)")
+    export.add_argument("--workdir-output", default=None,
+                        dest="workdir_output",
+                        help="Workdir stem if it differs from the input file name")
+
     library = sub.add_parser("library",
                               help="Build all PDF/EPUB/TXT files in a directory")
     library.add_argument("directory",
@@ -806,6 +817,39 @@ def cmd_review(args) -> None:
         print(f"      vorpal review {args.input}{out_flag} --approve")
 
 
+# ── export ────────────────────────────────────────────────────────────────
+
+
+def cmd_export(args) -> None:
+    from .export import export_txt, export_epub
+    from .segment import Section
+
+    input_path = Path(args.input)
+    output_stem = args.workdir_output or input_path.stem
+    work_dir = Path(f"{output_stem}_workdir")
+    if not (work_dir / "book.json").exists():
+        sys.exit(f"ERROR: No manifest at {work_dir / 'book.json'} "
+                 f"— run `vorpal build` first.")
+
+    manifest = Manifest.load_or_create(work_dir)
+    sections = [Section.from_dict(d) for d in manifest.data.get("chapters", [])]
+    if not sections:
+        sys.exit("ERROR: No chapters in manifest — run `vorpal build` first.")
+
+    title  = manifest.source.get("title")  or input_path.stem
+    author = manifest.source.get("author") or ""
+    fmt    = args.format
+    out_path = Path(args.output or f"{output_stem}.{fmt}")
+
+    if fmt == "txt":
+        result = export_txt(sections, work_dir, out_path, safe_filename)
+    else:
+        result = export_epub(sections, work_dir, out_path, title, author, safe_filename)
+
+    n_included = sum(1 for s in sections if s.include)
+    print(f"  Exported {n_included} chapter(s)  →  {result}")
+
+
 # ── library / batch mode ─────────────────────────────────────────────────
 
 
@@ -985,6 +1029,8 @@ def main(argv=None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "build":
         cmd_build(args)
+    elif args.command == "export":
+        cmd_export(args)
     elif args.command == "library":
         cmd_library(args)
     elif args.command == "review":
