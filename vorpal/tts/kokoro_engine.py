@@ -16,6 +16,7 @@ class KokoroEngine(TTSEngine):
     sample_rate = 24000
     max_chunk_chars = 400
     supported_tones = ()
+    supports_batch = True   # GPU path: single no_grad context for a whole chapter
 
     def __init__(self, voice: str = "af_heart", speed: float = 1.0,
                  params: Optional[dict] = None):
@@ -98,3 +99,32 @@ class KokoroEngine(TTSEngine):
             return None
         parts = [p.cpu().numpy() if hasattr(p, "cpu") else p for p in parts]
         return np.concatenate(parts)
+
+    def synthesize_batch(self, texts, tone=None):
+        """Synthesize a list of texts in a single torch.no_grad() context.
+
+        On GPU this keeps the model warm between chunks and avoids repeated
+        context-manager overhead. Falls back to serial on CPU (no GPU gain).
+        Returns a list of numpy arrays parallel to `texts` (None for empty).
+        """
+        import numpy as np
+        import torch
+
+        if not torch.cuda.is_available():
+            return [self.synthesize(t, tone=tone) for t in texts]
+
+        pipeline = self._load()
+        voice_arg = self._get_voice_arg()
+        results = []
+        with torch.no_grad():
+            for text in texts:
+                parts = []
+                for _, _, audio in pipeline(text, voice=voice_arg, speed=self.speed):
+                    if audio is not None and len(audio) > 0:
+                        parts.append(audio)
+                if not parts:
+                    results.append(None)
+                else:
+                    parts = [p.cpu().numpy() if hasattr(p, "cpu") else p for p in parts]
+                    results.append(np.concatenate(parts))
+        return results

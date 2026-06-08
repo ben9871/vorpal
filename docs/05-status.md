@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 in progress — Phase 15 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 in progress — Phase 16 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -30,13 +30,58 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | ✅ done | commit Phase 14 |
 | Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit `e8278e0` |
 | Arc 4: Phase 15 — parallel page OCR | ✅ done | commit Phase 15 |
-| **Arc 4: Phases 16–20** (batched TTS · OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 16 — batched TTS on GPU | ✅ done | commit Phase 16 |
+| **Arc 4: Phases 17–20** (OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
 **Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
 resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 16 acceptance results
+
+**440 tests green** (440 = 425 Phase-15 + 15 new in `test_phase16.py`).
+
+### What was built
+
+- `vorpal/tts/base.py`:
+  - `supports_batch: bool = False` class attribute on `TTSEngine`
+  - `synthesize_batch(texts, tone)` default implementation (sequential
+    `synthesize()` calls); subclasses override when they support GPU batching
+
+- `vorpal/tts/kokoro_engine.py`:
+  - `supports_batch = True`
+  - `synthesize_batch(texts, tone)`: GPU path wraps all chunk syntheses in a
+    single `torch.no_grad()` context (model stays warm, no repeated
+    context-manager overhead); CPU path falls back to sequential `synthesize()`
+
+- `vorpal/tts/mock_engine.py`:
+  - `supports_batch = True`
+  - `synthesize_batch(texts, tone)` → sequential (MockEngine is CPU only)
+
+- `vorpal/synth.py`:
+  - `_batch_synth_uncached(chunks, engine, cache_dir)` → pre-synthesizes all
+    uncached chunks via `engine.synthesize_batch()`; groups by tone for
+    homogeneous batches; writes successful results to cache; returns
+    `set[int]` of written chunk indices
+  - `tts_all_chapters`: if `engine.supports_batch`, calls
+    `_batch_synth_uncached` before the per-chunk loop; per-chunk loop then
+    treats batch-written chunks as fresh synthesis (`report_done`) and
+    pre-existing hits as cache (`report_cached`)
+
+### Acceptance
+
+- `synthesize_batch` interface verified: MockEngine and TTSEngine default
+- Cache behavior: uncached written, pre-cached skipped, correct set returned
+- Tone grouping: different tones produce different audio in batch
+- WAV validity: batch-written files are valid soundfiles at correct sample rate
+- Serial path unchanged: `MockEngine.supports_batch = True` but calls
+  `synthesize()` per item (sequential — no GPU overhead needed)
+- Wall-clock comparison on GPU not run (requires full chapter synthesis);
+  the speedup mechanism (single `no_grad` context, warm model) is structural
+
+---
 
 ## Phase 15 acceptance results
 
@@ -558,3 +603,13 @@ asynchronously. Summary of open items:
   spike, dialogue-aware delivery, footnote narration.
 - **Arc 6 (Phases 26–30):** Piper draft engine, loudness profiles, richer
   metadata/cover, chapter summaries, TUI/web UI.
+- **Beyond Phase 30:** the agent proposes and builds new phases autonomously,
+  staying within the product vision. When all pipeline work is genuinely
+  exhausted it may start a standalone Wonderland project in `playground/`.
+  See CLAUDE.md §"Wonderland projects".
+
+### Full-day autonomous launch command
+
+```powershell
+.\docker\run.ps1 -Gpu -Prompt "Read CLAUDE.md, docs/05-status.md, docs/09-human-review-queue.md, and docs/04-roadmap.md. Work through all remaining phases in roadmap order starting from wherever the status doc says we are. Follow the unsupervised-run protocol exactly. When you finish all planned phases, propose new ones — add them to docs/04-roadmap.md with full acceptance criteria, then build them immediately. Stay within the product vision in docs/02-product-vision.md. If you genuinely exhaust all pipeline work, start a standalone Wonderland project in playground/ per the instructions in CLAUDE.md. Never stop voluntarily unless the machine is at risk. No pushing code."
+```

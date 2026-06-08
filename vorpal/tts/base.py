@@ -6,7 +6,7 @@ Voice cloning is out of scope by design (docs/02-product-vision.md).
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, Optional
 
 
 class TTSEngine(ABC):
@@ -16,6 +16,9 @@ class TTSEngine(ABC):
     # Tones this engine acts on. Empty = engine ignores the tone hint.
     # Post-v1 expressive engines declare their vocabulary here.
     supported_tones: tuple = ()
+    # Set True in subclasses that implement synthesize_batch().
+    # When True, synth.py uses the batch path for uncached chunks.
+    supports_batch: bool = False
 
     @abstractmethod
     def synthesize(self, text: str, tone: Optional[str] = None):
@@ -29,3 +32,16 @@ class TTSEngine(ABC):
         support expressive narration ignore this parameter.
         """
         raise NotImplementedError
+
+    def synthesize_batch(self, texts: List[str],
+                         tone: Optional[str] = None) -> List:
+        """Synthesize a batch of texts, returning one audio array per text.
+
+        Default implementation falls back to sequential synthesize() calls.
+        Subclasses that support efficient GPU batching override this and set
+        supports_batch = True.
+
+        Returns a list parallel to `texts`; each element is a 1-D float numpy
+        array or None if that text produced no audio.
+        """
+        return [self.synthesize(t, tone=tone) for t in texts]

@@ -22,6 +22,7 @@ class MockEngine(TTSEngine):
     max_chunk_chars = 400
     supported_tones = ("somber", "tense", "warm", "wry", "neutral")
     cost_per_1k_chars: float = 0.0   # local/free
+    supports_batch = True
 
     # Each tone maps to a distinct frequency (Hz); 0 → silence
     _TONE_FREQ: dict = {
@@ -56,3 +57,7 @@ class MockEngine(TTSEngine):
             return np.zeros(n, dtype="float32")
         t = np.arange(n, dtype="float32") / self.sample_rate
         return (0.1 * np.sin(2.0 * math.pi * freq * t)).astype("float32")
+
+    def synthesize_batch(self, texts, tone=None):
+        """Sequential batch: MockEngine doesn't gain from true batching."""
+        return [self.synthesize(t, tone=tone) for t in texts]

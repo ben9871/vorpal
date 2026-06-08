@@ -157,6 +157,40 @@ def _synth_with_retry(text: str, tone: Optional[str], engine: TTSEngine,
     )
 
 
+# ── batched synthesis helper ─────────────────────────────────────────────
+
+def _batch_synth_uncached(all_chunks, engine, cache_dir):
+    """Pre-synthesize uncached chunks via engine.synthesize_batch().
+
+    Writes each successful result to its cache WAV.  Failed items are left
+    uncached so the calling loop falls through to _synth_with_retry.
+
+    Returns set[int] of chunk.idx values that were successfully written.
+    """
+    import soundfile as sf
+    from itertools import groupby
+
+    uncached = [c for c in all_chunks
+                if not (cache_dir / _cache_key(c, engine)).exists()]
+    if not uncached:
+        return set()
+
+    written = set()
+    for tone, group in groupby(uncached, key=lambda c: c.tone):
+        group_chunks = list(group)
+        texts = [c.text for c in group_chunks]
+        try:
+            results = engine.synthesize_batch(texts, tone=tone)
+        except Exception:
+            continue
+        for chunk, audio in zip(group_chunks, results):
+            if audio is not None and len(audio) > 0:
+                cache_path = cache_dir / _cache_key(chunk, engine)
+                sf.write(str(cache_path), audio, engine.sample_rate)
+                written.add(chunk.idx)
+    return written
+
+
 # ── main synthesis loop ───────────────────────────────────────────────────
 
 def tts_all_chapters(
@@ -239,6 +273,7 @@ def tts_all_chapters(
     failed_chunks = []   # for the synthesis report
     tts_start = time.time()
     chunk_times = []
+    use_batch = getattr(engine, "supports_batch", False)
 
     for ch_idx, (chapter, all_chunks) in enumerate(
             zip(active_chapters, chapter_chunk_lists)):
@@ -259,6 +294,11 @@ def tts_all_chapters(
         print(f"  Chapter {ch_idx+1}/{len(active_chapters)}: {chapter['title'][:50]}")
         print(f"  {'─' * 52}")
 
+        # ── Batch uncached chunks when engine supports it ──────────────────
+        batch_written = set()
+        if use_batch:
+            batch_written = _batch_synth_uncached(all_chunks, engine, cache_dir)
+
         chunk_wavs = []   # (path, pause_after_ms)
 
         for chunk in all_chunks:
@@ -266,8 +306,10 @@ def tts_all_chapters(
 
             if cache_path.exists():
                 chunk_wavs.append((cache_path, chunk.pause_after_ms))
-                report_cached += 1
-                # Update progress display
+                if chunk.idx in batch_written:
+                    report_done += 1   # freshly synthesized via batch
+                else:
+                    report_cached += 1
                 i = chunk.idx
                 pct = (report_done + report_cached) / max(total_chunks, 1) * 100
                 filled = int(30 * (i + 1) / max(n_chunks, 1))
