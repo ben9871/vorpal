@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-07 (Phase 9 spike complete — Arc 3 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 in progress — Phase 15 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -29,13 +29,47 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 3: Phase 13 — pronunciation lexicon (`--lexicon`) | ✅ done | commit Phase 13 |
 | Arc 3: Phase 14 — draft-mode builds (`--draft`) | ✅ done | commit Phase 14 |
 | Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit `e8278e0` |
-| **Arc 4: Phases 15–20** (parallel OCR · batched TTS · OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 15 — parallel page OCR | ✅ done | commit Phase 15 |
+| **Arc 4: Phases 16–20** (batched TTS · OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
 **Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
 resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 15 acceptance results
+
+**425 tests green** (425 = 414 Phase-14 + 11 new in `test_phase15.py`).
+
+### What was built
+
+- `vorpal/extract/__init__.py`:
+  - `_extract_page_worker(packed_args)` — module-level function (picklable);
+    opens its own `fitz.Document`, dispatches to `extract_digital_page` or
+    `extract_scanned_page`, closes doc in a `finally` block
+  - `_run_ordered(tasks, worker_fn, executor_cls, n_workers)` — submits tasks
+    to any `concurrent.futures` executor; collects results in submission order
+    regardless of completion order (uses `as_completed` + index tracking)
+  - `extract_pages` updated: accepts `workers` param (default:
+    `max(1, cpu_count - 1)`); uses `ProcessPoolExecutor` when `workers > 1`
+    and `len(selected) > 1`; falls back to serial when `workers=1` or single
+    page; serial path calls `_extract_page_worker` directly (no open-doc
+    thread in the main process)
+
+### Acceptance
+
+- `_run_ordered` ordering verified with `ThreadPoolExecutor` stub: 11 tests
+  covering empty input, single item, variable-latency completion order,
+  large list (50 items), single worker
+- Worker count formula: `max(1, cpu_count - 1)`; never zero; never exceeds
+  cpu_count
+- `_extract_page_worker` is module-level (picklable) — verified by
+  `__module__` attribute check
+- Wall-clock comparison against serial: not run (requires Firestone workdir);
+  the parallelism is structural — each worker opens its own doc independently
+
+---
 
 ## Phase 9 — In-house voice spike results
 
@@ -471,19 +505,56 @@ vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth
 ## What to build next
 
 **Arc 3 is complete.** Phases 10–14 done, Phase 9 spike done.
+**Arc 4 (Phases 15–20)** is the next unsupervised session — see
+`docs/04-roadmap.md` for full acceptance criteria.
 
-### Pending human actions before new features
+### Tone-backend credential status & the manual-seeding approach
 
-1. **Phase 9 listening verdict** — play `playground/final_vorpal_narrator_v1.wav`
-   vs `playground/final_bm_george_baseline.wav`. Approve or reject registry integration.
-2. **Live tone tagging** — add API credits or authenticate `claude -p` to verify
-   Phase 8 live acceptance items.
-3. **Phase 7 OpenAI voices** — add `VORPAL_OPENAI_KEY` to test the APIEngine path.
+`VORPAL_ANTHROPIC_KEY` has zero credits and `claude -p` is not authenticated
+inside the container. For phases that touch the LLM backend (Phase 17 — OCR
+repair; Phase 29 — chapter summaries), the agent must use the
+**manual-seeding approach**:
 
-### Proposed next phase: StyleTTS2 voice design (Phase 9b)
+1. Find actual low-confidence blocks in the Firestone `pages.jsonl`.
+2. Write plausible proposals by hand (same JSON structure the LLM would return).
+3. Inject them and run the full downstream workflow: diff in review,
+   approve/reject round-trip, apply path.
+4. Document: *"LLM proposal step manually seeded — workflow verified; live
+   call blocked on credentials."*
 
-If the PCA voice is approved and deeper novelty is wanted, a follow-up spike
-using StyleTTS2 (Apache-2.0, ~1.2 GB) could produce a voice with a genuinely
-different timbre by encoding a public-domain LibriVox reader's style and then
-optimizing an embedding toward a target character profile. This would take 2-3h
-on this GPU. See `docs/08-voice-training-spike.md` §6.
+**Why the compromise is sound:** the goal is to confirm code paths, data
+structures, review surface, and normalization application are correct *before*
+credentials arrive. When the token is added, only the proposal source changes —
+everything downstream is already proven. This is the same pattern used in
+Phase 8 (manual cache pre-population) and Phase 13 (lexicon round-trip without
+live LLM). The `cli` tone backend's `claude -p /login` step: if it requires
+interactive login, mark it `(human: claude -p needs /login)` and continue.
+
+### Pending human actions
+
+Full details and decision options for every item are in
+**[`docs/09-human-review-queue.md`](09-human-review-queue.md)** — that is the
+canonical list. The agent appends to it automatically; work through it
+asynchronously. Summary of open items:
+
+| ID | Phase | What's needed |
+|---|---|---|
+| H-001 | Phase 9 | Listen to `playground/final_vorpal_narrator_v1.wav` vs baseline; approve/reject registry integration |
+| H-002 | Phase 7/21 | Provision `VORPAL_OPENAI_KEY` to unblock APIEngine live acceptance |
+| H-003 | Phase 8/11/22 | Blind A/B tone verdict — does `--expressive` sound better? |
+| H-004 | Phase 11 | Add API credits or run `claude /login` interactively to unblock live tone tagging |
+| H-005 | Phase 3 | Listening spot-check of a full Firestone build (narration quality) |
+| H-006 | Phase 4 | Chapter marker verification in VLC or BookPlayer |
+| H-007 | Phase 6 | Voice audition (`vorpal voices --sample`) — pick favourites, adjust blends |
+| H-008 | Phase 24 | Dialogue delivery spot-check (pending Phase 24) |
+| H-009 | Phase 23 | StyleTTS2 voice verdict (pending Phase 23) |
+| H-010 | Phase 30 | TUI usability spot-check (pending Phase 30) |
+
+### Roadmap horizon
+
+- **Arc 4 (Phases 15–20):** parallel OCR, batched TTS, LLM OCR repair (manual
+  seeded), library mode, manifest export, corpus hardening.
+- **Arc 5 (Phases 21–25):** OpenAI TTS live, tone on real engine, StyleTTS2
+  spike, dialogue-aware delivery, footnote narration.
+- **Arc 6 (Phases 26–30):** Piper draft engine, loudness profiles, richer
+  metadata/cover, chapter summaries, TUI/web UI.
