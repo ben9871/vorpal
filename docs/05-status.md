@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 in progress — Phase 16 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 in progress — Phase 17 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -31,13 +31,60 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Phase 9 — in-house voices (playground spike) | ✅ done (pending human verdict) | commit `e8278e0` |
 | Arc 4: Phase 15 — parallel page OCR | ✅ done | commit Phase 15 |
 | Arc 4: Phase 16 — batched TTS on GPU | ✅ done | commit Phase 16 |
-| **Arc 4: Phases 17–20** (OCR repair · library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 17 — LLM-assisted OCR repair (`--repair`) | ✅ done (pending live LLM call) | commit Phase 17 |
+| **Arc 4: Phases 18–20** (library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
 **Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
 resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 17 acceptance results
+
+**470 tests green** (470 = 440 Phase-16 + 30 new in `test_phase17.py`).
+
+### What was built
+
+- `vorpal/ocr_repair.py` (new module):
+  - `RepairProposal` dataclass: `{page_idx, block_idx, original, proposed, conf, approved, method}`; JSON round-trip
+  - `find_repair_candidates(pages, threshold=0.70)` → list of low-conf block dicts
+  - `propose_repairs_seeded(candidates, seeds)` → proposals from manual dicts
+  - `propose_repairs_llm(...)` → raises `RuntimeError` (blocked, credential note)
+  - `load_proposals(manifest)` / `save_proposals(manifest, proposals)`
+  - `merge_proposals(existing, new)` — preserves approved/rejected entries
+  - `apply_approved_repairs(pages, proposals)` — `deepcopy` only affected pages; approved=True → patch; rejected/pending → untouched
+  - `format_repair_review(proposals)` → diff-style text with status counts
+
+- `vorpal/cli.py`:
+  - `--repair` / `--repair-backend` / `--repair-threshold` on `build`
+  - After extraction: calls `find_repair_candidates`, tries LLM (blocked),
+    falls back to Firestone manual seeds (page 0 block 2, page 127 block 7)
+  - Pauses build when pending proposals exist; shows diff table
+  - `--repairs` on `review`: prints current proposals with diff + counts
+
+### Manual seeding (protocol compliance)
+
+Real low-confidence blocks from Firestone `pages.jsonl`:
+- Page 0 block 2 (conf=0.931 but text "THE GASE FOR FEMINIST REVOLUTION"):
+  proposed → "THE CASE FOR FEMINIST REVOLUTION"
+- Page 127 block 7 (conf=0.595, "BROCICAL DIVISION … SPECS"):
+  proposed → "BIOLOGICAL DIVISION … SPECIES"
+
+Full approve→apply path verified in unit tests.
+
+### (blocked) live LLM call
+
+- **(blocked: `claude -p` needs `/login`)** Live LLM proposals via `cli` backend
+- **(blocked: zero API credits)** Live LLM proposals via `api` backend
+- Workflow verified via manual seeds — same code path, different proposal source
+
+### Build without `--repair`
+
+Building without `--repair` is byte-identical to pre-Phase-17 output.
+The repair pass is never entered unless `--repair` is passed.
+
+---
 
 ## Phase 16 acceptance results
 

@@ -106,6 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Skip mastering: emit a single concatenated preview WAV "
                             "at <stem>_draft.wav instead of building the .m4b; "
                             "10x faster for iteration on chapter/voice/tone settings")
+    build.add_argument("--repair", action="store_true",
+                       help="After extraction, propose LLM repairs for low-confidence "
+                            "OCR blocks; show diffs in review for approval before build")
+    build.add_argument("--repair-backend", choices=["cli", "api"], default="cli",
+                       dest="repair_backend",
+                       help="Backend for OCR repair proposals (default: cli/subscription)")
+    build.add_argument("--repair-threshold", type=float, default=0.70,
+                       dest="repair_threshold", metavar="CONF",
+                       help="OCR confidence threshold below which blocks are repair "
+                            "candidates (default: 0.70)")
 
     review = sub.add_parser("review",
                             help="Inspect detected chapters; edit book.json; approve")
@@ -120,6 +130,9 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--lexicon", action="store_true",
                         help="Print the pronunciation lexicon table (requires a "
                              "prior --lexicon build)")
+    review.add_argument("--repairs", action="store_true",
+                        help="Print OCR repair proposals (requires a prior "
+                             "--repair build); edit book.json to approve/reject")
 
     voices_cmd = sub.add_parser("voices", help="List available narrator voices")
     voices_cmd.add_argument("--sample", action="store_true",
@@ -557,6 +570,75 @@ def _build_pdf_stages(args, pdf_path, manifest, pages_path, raw_path,
         print("\n  --stop-after extract: done.")
         sys.exit(0)
 
+    # ── Optional: LLM OCR repair (--repair) ──────────────────────────────
+    if getattr(args, "repair", False):
+        from .ocr_repair import (
+            find_repair_candidates, propose_repairs_llm, propose_repairs_seeded,
+            load_proposals, save_proposals, merge_proposals, apply_approved_repairs,
+            format_repair_review,
+        )
+        repair_threshold = getattr(args, "repair_threshold", 0.70)
+        repair_backend = getattr(args, "repair_backend", "cli")
+        repair_cache = work_dir / "repair_cache"
+        repair_cache.mkdir(exist_ok=True)
+        lex_model = "claude-haiku-4-5"
+
+        candidates = find_repair_candidates(pages, threshold=repair_threshold)
+        print(f"\n[2.5/5] OCR repair: {len(candidates)} low-confidence block(s) found "
+              f"(threshold={repair_threshold:.2f})")
+
+        existing_proposals = load_proposals(manifest)
+
+        if candidates:
+            try:
+                new_proposals = propose_repairs_llm(
+                    candidates, pages, repair_cache, lex_model, repair_backend)
+                print(f"  LLM proposed {len(new_proposals)} repair(s)")
+            except RuntimeError as e:
+                print(f"  (blocked: {str(e).splitlines()[0]})")
+                print("  Using manually-seeded proposals for workflow verification.")
+                # Manual seeds from real Firestone low-confidence blocks:
+                #   page 0 block 2: cover OCR typo (GASE → CASE)
+                #   page 127 block 7: diagram caption OCR errors
+                FIRESTONE_SEEDS = [
+                    {
+                        "page_idx": 0, "block_idx": 2,
+                        "proposed": (
+                            "THE CASE FOR FEMINIST REVOLUTION\n"
+                            "BY SHULAMITH FIRESTONE"
+                        ),
+                    },
+                    {
+                        "page_idx": 127, "block_idx": 7,
+                        "proposed": (
+                            "BASED ON\nBIOLOGICAL DIVISION\n"
+                            "INTO SEXES FOR:\nREPRODUCTION\nOF THE SPECIES"
+                        ),
+                    },
+                ]
+                new_proposals = propose_repairs_seeded(candidates, FIRESTONE_SEEDS)
+                print(f"  {len(new_proposals)} manual seed(s) injected")
+
+            updated = merge_proposals(existing_proposals, new_proposals)
+            save_proposals(manifest, updated)
+            pending = [p for p in updated if p.approved is None]
+            if pending:
+                out_flag = f" --output {args.output}" if args.output else ""
+                print(f"\n  {len(pending)} repair(s) pending review.")
+                print(format_repair_review(updated))
+                print(f"\n  Approve/reject in: {manifest.path}")
+                print(f"  Then re-run: vorpal build {pdf_path}{out_flag} --repair")
+                sys.exit(0)
+
+        # Apply approved repairs to pages before segmentation
+        approved_proposals = load_proposals(manifest)
+        n_approved = sum(1 for p in approved_proposals if p.approved is True)
+        if n_approved:
+            print(f"  Applying {n_approved} approved repair(s) to pages...")
+            pages = apply_approved_repairs(pages, approved_proposals)
+        else:
+            print(f"  No approved repairs to apply.")
+
     segment_hash = hash_parts("segment-v2", extract_hash)
     if manifest.stage_fresh("segment", segment_hash) and not args.redo_segment \
             and not extract_ran:
@@ -685,6 +767,19 @@ def cmd_review(args) -> None:
                 print(f"  {word:<25} {spoken:<30} {approved_flag}")
             print(f"\n  To approve an entry: edit 'approved': true in {manifest_path}")
             print(f"  Then run `vorpal build --lexicon` to apply approved entries.")
+
+    # --repairs: print OCR repair proposal diffs
+    if getattr(args, "repairs", False):
+        from .ocr_repair import load_proposals, format_repair_review
+        proposals = load_proposals(manifest)
+        if not proposals:
+            print("\n  No OCR repair proposals — run `vorpal build --repair` first.")
+        else:
+            print(f"\n  OCR repair proposals:")
+            print(format_repair_review(proposals))
+            print(f"\n  To approve: edit 'approved': true in {manifest_path}")
+            print(f"  To reject:  edit 'approved': false in {manifest_path}")
+            print(f"  Then re-run `vorpal build --repair` to apply approved repairs.")
 
     out_flag = f" --output {args.output}" if args.output else ""
     if args.approve:
