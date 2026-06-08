@@ -134,6 +134,18 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Print OCR repair proposals (requires a prior "
                              "--repair build); edit book.json to approve/reject")
 
+    library = sub.add_parser("library",
+                              help="Build all PDF/EPUB/TXT files in a directory")
+    library.add_argument("directory",
+                         help="Directory containing PDF, EPUB, or TXT books")
+    library.add_argument("--voice",   default="af_heart")
+    library.add_argument("--speed",   type=float, default=1.0)
+    library.add_argument("--dpi",     type=int, default=300)
+    library.add_argument("--stop-after", choices=["extract", "segment"], default=None,
+                         help="Stop each book build after the named stage")
+    library.add_argument("--draft",   action="store_true",
+                         help="Build each book in draft mode (preview WAV)")
+
     voices_cmd = sub.add_parser("voices", help="List available narrator voices")
     voices_cmd.add_argument("--sample", action="store_true",
                             help="Render a short audition WAV for each voice "
@@ -794,6 +806,121 @@ def cmd_review(args) -> None:
         print(f"      vorpal review {args.input}{out_flag} --approve")
 
 
+# ── library / batch mode ─────────────────────────────────────────────────
+
+
+def _discover_books(directory: Path) -> list:
+    """Find PDF/EPUB/TXT files directly inside directory (non-recursive)."""
+    books = []
+    for ext in ("*.pdf", "*.epub", "*.txt"):
+        books.extend(sorted(directory.glob(ext)))
+    return books
+
+
+def _build_one_library_book(library_args, book_path: Path):
+    """Build one book within a library run.  Returns (status, detail).
+
+    status is one of: "success", "needs_review", "failed".
+    Workdir is placed next to the book (inside the library directory) so
+    each book's artifacts stay with the library rather than in CWD.
+    """
+    import argparse as _argparse
+    book_args = _argparse.Namespace(
+        input=str(book_path),
+        output=str(book_path.parent / book_path.stem),
+        title="",
+        author="",
+        voice=getattr(library_args, "voice", "af_heart"),
+        speed=getattr(library_args, "speed", 1.0),
+        dpi=getattr(library_args, "dpi", 300),
+        start_page=0,
+        end_page=None,
+        keep_temp=False,
+        redo_extract=False,
+        redo_segment=False,
+        redo_tts=False,
+        allow_gaps=True,  # library mode: don't abort the whole shelf on a bad chunk
+        stop_after=getattr(library_args, "stop_after", None),
+        max_cost=None,
+        expressive=False,
+        tone_backend="cli",
+        tone_model="haiku",
+        lexicon=False,
+        lexicon_backend="cli",
+        asr_check=False,
+        asr_model="base",
+        asr_fraction=0.10,
+        draft=getattr(library_args, "draft", False),
+        repair=False,
+        repair_backend="cli",
+        repair_threshold=0.70,
+    )
+    try:
+        cmd_build(book_args)
+        return "success", ""
+    except SystemExit as e:
+        code = e.code
+        if code is None or code == 0:
+            return "success", ""
+        msg = str(code)
+        if "review" in msg.lower() or "vorpal review" in msg.lower():
+            return "needs_review", msg[:160]
+        return "failed", msg[:160]
+    except Exception as e:
+        return "failed", str(e)[:160]
+
+
+def _write_library_report(lib_dir: Path, results: list) -> Path:
+    """Write library_report.md summarising per-book build status."""
+    report_path = lib_dir / "library_report.md"
+    n_success = sum(1 for r in results if r["status"] == "success")
+    n_review  = sum(1 for r in results if r["status"] == "needs_review")
+    n_failed  = sum(1 for r in results if r["status"] == "failed")
+    lines = [
+        "# Library Build Report\n",
+        f"Books processed: {len(results)}\n",
+        "| Status | File | Detail |",
+        "|--------|------|--------|",
+    ]
+    for r in results:
+        lines.append(f"| {r['status']} | {r['file']} | {r.get('detail', '')} |")
+    lines.append(
+        f"\n**Summary:** {n_success} success · {n_review} needs review · {n_failed} failed\n"
+    )
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    return report_path
+
+
+def cmd_library(args) -> None:
+    lib_dir = Path(args.directory)
+    if not lib_dir.is_dir():
+        sys.exit(f"ERROR: Not a directory: {lib_dir}")
+
+    books = _discover_books(lib_dir)
+    if not books:
+        sys.exit(f"ERROR: No PDF/EPUB/TXT files found in {lib_dir}")
+
+    print(f"\n  Library: {len(books)} book(s) in {lib_dir}")
+
+    results = []
+    for book_path in books:
+        print(f"\n{'─' * 58}")
+        print(f"  Building: {book_path.name}")
+        status, detail = _build_one_library_book(args, book_path)
+        results.append({"file": book_path.name, "status": status, "detail": detail})
+        print(f"  [{status.upper()}] {book_path.name}")
+
+    report = _write_library_report(lib_dir, results)
+
+    n_success = sum(1 for r in results if r["status"] == "success")
+    n_review  = sum(1 for r in results if r["status"] == "needs_review")
+    n_failed  = sum(1 for r in results if r["status"] == "failed")
+    print(f"\n{'=' * 58}")
+    print(f"  Library build complete.")
+    print(f"  {n_success} success · {n_review} needs review · {n_failed} failed")
+    print(f"  Report: {report}")
+
+
 def cmd_voices(args) -> None:
     voices = list_voices()
     blends = [v for v in voices if "blend" in v.params]
@@ -858,6 +985,8 @@ def main(argv=None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "build":
         cmd_build(args)
+    elif args.command == "library":
+        cmd_library(args)
     elif args.command == "review":
         cmd_review(args)
     elif args.command == "voices":

@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 in progress — Phase 17 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 in progress — Phase 18 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -32,13 +32,50 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 4: Phase 15 — parallel page OCR | ✅ done | commit Phase 15 |
 | Arc 4: Phase 16 — batched TTS on GPU | ✅ done | commit Phase 16 |
 | Arc 4: Phase 17 — LLM-assisted OCR repair (`--repair`) | ✅ done (pending live LLM call) | commit Phase 17 |
-| **Arc 4: Phases 18–20** (library mode · manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 18 — library / batch mode (`vorpal library`) | ✅ done | commit Phase 18 |
+| **Arc 4: Phases 19–20** (manifest export · corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
 listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
 **Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
 resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 18 acceptance results
+
+**490 tests green** (490 = 470 Phase-17 + 20 new in `test_phase18.py`).
+
+### What was built
+
+- `vorpal/cli.py`:
+  - `_discover_books(directory)` — finds `*.pdf`, `*.epub`, `*.txt` directly in
+    directory (non-recursive); sorted per extension; ignores workdirs and other files
+  - `_build_one_library_book(library_args, book_path)` — builds one book by
+    constructing a synthetic `Namespace` and calling `cmd_build`; workdir placed
+    next to the book (library dir) via `output=str(book_path.parent / book_path.stem)`;
+    catches `SystemExit` and exceptions → returns `("success"|"needs_review"|"failed", detail)`
+  - `_write_library_report(lib_dir, results)` — writes `library_report.md` inside
+    the library directory with Markdown table and summary line
+  - `cmd_library(args)` — discovers books, builds each continuing past failures,
+    prints per-book status, calls `_write_library_report`
+  - `library` subcommand in parser: `directory` positional + `--voice`, `--speed`,
+    `--dpi`, `--stop-after`, `--draft`
+
+### Acceptance
+
+- Discovery: finds pdf/epub/txt, skips .md and subdirs, sorts within extension
+- Report: contains all file names, status, correct summary counts
+- Failure isolation: one book failing does not abort others (caught and recorded)
+- `SystemExit(0)` → "success"; `SystemExit("vorpal review …")` → "needs_review";
+  other `SystemExit` → "failed"
+- Workdir placed next to each book in the library directory (not in CWD)
+- End-to-end: 3 TXT books built to `--stop-after segment` in `tmp_path`;
+  all succeed; `chapter_texts/` workdirs appear inside the library dir
+- Parser: `library` subcommand has expected flags and defaults
+- Resume: rely on existing stage-hash cache — already-built stages fast-path
+  through without re-extracting or re-synthesizing
+
+---
 
 ## Phase 17 acceptance results
 
@@ -576,7 +613,7 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 414 passed
+python -m pytest -q                  # should be 490 passed
 
 # Verify Phase 14:
 vorpal build tests/fixtures/outline.pdf --draft --end-page 3

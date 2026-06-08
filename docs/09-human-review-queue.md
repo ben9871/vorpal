@@ -1,0 +1,277 @@
+# Human Review Queue
+
+The agent appends to this file whenever it surfaces an item that needs a human
+decision. **Nothing in the pipeline blocks on this queue** — for every item the
+agent states what it assumed in order to keep going. Work through it when you
+have time; cross off items by updating the status to `✅ done` and noting the
+decision.
+
+**Agent instruction (read at the start of every session):** Scan this file
+before starting work. If any open item was addressed by the operator (an audio
+file was listened to, a credential was added, a flag was set), update its entry
+to `✅ done`, note the outcome, and apply it to the relevant code or manifest.
+Then proceed with the session's phase work.
+
+**Format for new entries:**
+
+```
+### [H-NNN] Phase N — Short title
+**Added:** YYYY-MM-DD  **Status:** open
+**What to review / do:** concrete action (file path, command, decision)
+**Decision options:** what "yes" and "no" mean for the pipeline
+**Agent's assumption:** what the agent did / did not do in order to proceed
+**Outcome (fill in when done):** …
+```
+
+---
+
+## Open items
+
+### [H-001] Phase 9 — Voice listening verdict
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Play these two files back to back:
+- `playground/final_vorpal_narrator_v1.wav` — the designed PCA voice
+- `playground/final_bm_george_baseline.wav` — current default narrator
+
+Answer: is the designed voice (a) distinctly different from bm_george,
+(b) natural-sounding, (c) better suited to non-fiction narration?
+
+**Decision options:**
+- **Yes → approve:** name the voice (suggested: `am_rector` or `am_scholar`)
+  and confirm registry integration. The entry template is in
+  `docs/08-voice-training-spike.md` §8 — the agent will add it to
+  `vorpal/tts/voices.py` and move the `.pt` file to the committed voice store.
+- **No → reject:** existing `bm_george` + `bm_daniel` blend already covers
+  the clear-male-narrator use case. No action needed.
+
+**Agent's assumption:** Voice not yet wired into the registry. The `.pt` file
+sits in `playground/` (gitignored) and is not referenced by any shipped code.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-002] Phase 7 / Phase 21 — OpenAI TTS live acceptance
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Provision `VORPAL_OPENAI_KEY` in the Windows user environment (and inject it
+into the container via `docker/run.ps1`). Once set, the agent can complete
+Phase 21 (1-chapter Firestone build, cost estimate, network-abort test, manual-
+tone acoustic delta) without any other changes.
+
+**Decision options:**
+- **Add key:** agent completes Phase 21 in the next session; marks live
+  acceptance items done; APIEngine path is fully proven.
+- **Defer:** Phase 21 stays `(blocked: VORPAL_OPENAI_KEY not set)`; the
+  Kokoro-approximation path remains the only proven realization layer.
+
+**Agent's assumption:** `APIEngine` is built, unit-tested against the mock
+engine, and wired into the CLI. It is not run live. Phase 7 acceptance is
+marked `done (pending live)`.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-003] Phase 8 / Phase 11 / Phase 22 — Blind A/B tone verdict
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Listen to the paired clips and pick which version reads better (no peeking at
+which is which until after):
+
+Phase 11 demo kit (Kokoro approximation, somber tone):
+- `scratch/ab_kit_demo/neutral_firestone_ch1_neutral_vs_somber.wav`
+- `scratch/ab_kit_demo/expressive_firestone_ch1_neutral_vs_somber.wav`
+
+(Phase 22 clips to be added here once generated against the instruction engine.)
+
+**Decision options:**
+- **Expressive wins:** `--expressive` can be promoted from opt-in toward a
+  recommended default. The agent will update the CLI help text and README.
+- **Expressive doesn't win (or can't tell):** `--expressive` stays opt-in,
+  clearly documented as experimental. No code change needed.
+- **Partial:** some tones work, some don't — the agent can narrow
+  `supported_tones` on the Kokoro approximation engine to only the ones that
+  pass both the acoustic gate and your ear.
+
+**Agent's assumption:** `--expressive` is opt-in, off by default. The acoustic
+gate (Phase 11) found 5/7 tones pass on the Kokoro layer; `warm` and `wry` are
+flagged as below threshold and documented in the status doc.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-004] Phase 11 — Live tone tagging (credentials)
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Either:
+- Add API credits to the `VORPAL_ANTHROPIC_KEY` account, **or**
+- Run `claude /login` once in an interactive container session so the
+  OAuth token persists in the `claude-config` Docker volume.
+
+Once either is done the agent can run `vorpal build firestone.pdf --expressive`
+and verify: neutral fraction ≳ 60%, tagging twice is a cache hit, histogram
+in `report.md`.
+
+**Decision options:**
+- **Add credits / login:** agent completes Phase 11 live acceptance in the
+  next session.
+- **Defer:** Phase 11 stays `done (pending live)`. The tagger code and cache
+  logic are verified via manual pre-population; quality of LLM tags is
+  unknown.
+
+**Agent's assumption:** Tagger code is complete and cache-correct. Live tag run
+has not been performed.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-005] Phase 3 — Listening spot-check (narration quality)
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+On a GPU machine, run a full Firestone build and listen to 3 random 2-minute
+segments. Check: (a) no narrated junk (headers, page numbers, footnote markers),
+(b) no mid-sentence prosody breaks at chunk boundaries.
+
+**Decision options:**
+- **Passes:** Phase 3 is fully accepted. Note the build date and confirm in
+  the status doc.
+- **Fails:** file an issue with the exact text / timestamp of the problem so
+  it can be minimized into a test.
+
+**Agent's assumption:** All machine-checkable Phase 3 criteria pass (normalization
+suite, `failed: 0` on synth, selective re-synth on title edit). The listening
+check is the only unverified item.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-006] Phase 4 — Chapter marker verification in a real player
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Open a full Firestone `.m4b` in VLC or BookPlayer. Tap through the chapter
+markers and confirm they land at the correct chapter starts (not mid-sentence,
+not on silence).
+
+**Decision options:**
+- **Passes:** Phase 4 fully accepted.
+- **Fails:** note which chapter(s) are off and by how much — the mastering
+  stage's marker-offset logic can be debugged from that data.
+
+**Agent's assumption:** Marker timestamps are verified programmatically
+(duration sum vs chapter audio lengths). The real-player check is the only
+unverified item.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-007] Phase 6 — Voice audition (pick favourites)
+**Added:** 2026-06-07  **Status:** open
+
+**What to review / do:**
+Run `vorpal voices --sample` on a GPU machine. It renders one clip per voice
+into `voices_preview/`. Listen to all 11 (8 singles + 3 blends) and note
+which you prefer for different book types (literary, academic, conversational).
+
+**Decision options:**
+- **Anything goes:** no code change; the registry stays as-is.
+- **Remove a voice:** the agent can drop it from the registry.
+- **Adjust a blend recipe:** give a new weight (e.g. "Heart 70%, Nova 30%
+  instead of 65/35") and the agent will update the registry and invalidate
+  affected cache entries.
+
+**Agent's assumption:** All 11 voices are in the registry with the recipes
+from Phase 6. No audition has been run.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-008] Phase 24 — Dialogue delivery spot-check
+**Added:** 2026-06-08  **Status:** open  *(pending Phase 24)*
+
+**What to review / do:**
+After Phase 24 lands: run a build on a chapter with substantial quoted speech
+(Pride and Prejudice is the obvious choice — `corpus/pride_and_prejudice_pg1342.epub`).
+Listen to the dialogue sections and confirm the delivery shift sounds natural,
+not theatrical.
+
+**Decision options:**
+- **Natural:** keep `dialogue_style` enabled in the registry for voices that
+  support it.
+- **Too theatrical / jarring:** reduce the shift magnitude, or disable
+  `dialogue_style` by default and gate it behind `--dialogue`.
+- **Undetectable:** shift is too subtle — increase it or document that the
+  Kokoro-approx layer can't realize it reliably (same honest finding as
+  `warm`/`wry` in Phase 11).
+
+**Agent's assumption:** Phase 24 not yet built. This item is pre-registered so
+the agent adds its result here rather than creating a new entry.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-009] Phase 23 — StyleTTS2 voice verdict
+**Added:** 2026-06-08  **Status:** open  *(pending Phase 23)*
+
+**What to review / do:**
+After Phase 23 lands: listen to the StyleTTS2-designed voice sample in
+`playground/` alongside `playground/final_vorpal_narrator_v1.wav` (Phase 9
+PCA voice) and `playground/final_bm_george_baseline.wav`. Three-way comparison.
+
+**Decision options:**
+- **StyleTTS2 voice wins:** name it, approve registry integration — the agent
+  will add it to `vorpal/tts/voices.py`.
+- **PCA voice still preferred:** if H-001 was approved, proceed with that.
+  StyleTTS2 voice stays in `playground/`.
+- **Neither:** bm_george + bm_daniel blend is sufficient.
+
+**Agent's assumption:** Phase 23 not yet run. Pre-registered to ensure the
+result lands here rather than only in the spike doc.
+
+**Outcome (fill in when done):** …
+
+---
+
+### [H-010] Phase 30 — TUI usability spot-check
+**Added:** 2026-06-08  **Status:** open  *(pending Phase 30)*
+
+**What to review / do:**
+After Phase 30 lands: run `vorpal serve <some book>`. Complete a full
+review → approve → build cycle using only the web UI (no CLI). Confirm it
+feels usable and doesn't miss anything the CLI exposes.
+
+**Decision options:**
+- **Usable:** Phase 30 accepted as-is.
+- **Missing something:** file specific gaps — the agent will add the missing
+  surface to the UI.
+- **Prefer CLI:** the UI is additive (CLI unchanged), so this is just a scope
+  call on whether to invest further.
+
+**Agent's assumption:** Phase 30 not yet built. Pre-registered.
+
+**Outcome (fill in when done):** …
+
+---
+
+## Closed items
+
+*(Move entries here when addressed. Keep them for the record.)*
+
+<!-- example:
+### [H-000] Example closed item
+**Added:** 2026-01-01  **Status:** ✅ done 2026-01-15
+**Outcome:** Approved. Agent wired in the change in commit abc1234.
+-->
