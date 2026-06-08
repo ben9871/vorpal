@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 in progress — Phase 19 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-08 (Arc 4 complete — Phase 20 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -34,13 +34,65 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 4: Phase 17 — LLM-assisted OCR repair (`--repair`) | ✅ done (pending live LLM call) | commit Phase 17 |
 | Arc 4: Phase 18 — library / batch mode (`vorpal library`) | ✅ done | commit Phase 18 |
 | Arc 4: Phase 19 — manifest as first-class artifact (`vorpal export`) | ✅ done | commit Phase 19 |
-| **Arc 4: Phase 20** (corpus hardening) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 4: Phase 20 — corpus-hardening loop | ✅ done | commit Phase 20 |
+| **Arc 5: Phase 21** (OpenAI TTS live acceptance) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
-**Arc 3 complete.** All phases 10–14 done. Phase 9 spike done — pending human
-listening verdict and voice approval. See `docs/08-voice-training-spike.md`.
-**Arc 4 is queued** in the roadmap — the next unsupervised day; it opens by
-resolving the `cli` tone-backend `claude -p` login (HANDOFF-NOTES §1).
+**Arc 4 complete.** Phases 15–20 done.
+**Arc 5 is next** — Phase 21 (OpenAI TTS live acceptance) is likely blocked on
+`VORPAL_OPENAI_KEY`; Phase 22 (tone on real engine) depends on Phase 21.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 20 acceptance results
+
+**527 tests green** (527 = 519 Phase-19 + 8 new in `test_phase20_corpus.py`).
+
+### What was built
+
+- `tests/test_phase20_corpus.py` — 8 synthetic hostile-case corpus fixtures,
+  each built from scratch with PyMuPDF; all run through `--stop-after segment`:
+  1. **All-caps headings** — ALL-CAPS titles in printed TOC; verified via toc path
+  2. **Heavy footnotes** — footnote markers in body, block at bottom; no crash
+  3. **Non-ASCII titles** — French chapter titles (accented chars); encoding safe
+  4. **Many short chapters** — 20 single-paragraph chapters via outline; all found
+  5. **No TOC, no outline** — pure heuristic path; 4 "Part N" headings detected
+  6. **Long chapter titles** — titles > 80 chars; safe_filename + downstream safe
+  7. **Blank pages interspersed** — blank pages between chapters; chapters still found
+  8. **Nested heading hierarchy** — 3-level outline (ch → section → subsection);
+     top-level chapters narrated, subsections treated as content
+
+- `vorpal/segment/boilerplate.py` — **bug fix:**
+  - Added `MAX_BOILER_FONTSIZE = 13` constant
+  - `_band_candidates()` now skips blocks with `font_size > 13` — these are
+    chapter headings (typically ≥ 16pt), not running headers (typically ≤ 10pt)
+  - Fix prevents "Chapter 1", "Chapter 2", … from all normalizing to "Chapter #"
+    via `_normalize()` and being clustered as boilerplate (causing them to be
+    stripped before the segmenter could find them)
+  - Digital only: scanned blocks have `font_size=None`, guard never applied
+
+### Bugs found and fixed
+
+**Boilerplate removal too aggressive on numbered chapter headings:**
+- Root cause: `_normalize()` substitutes all digits with `#`, so "Chapter 1",
+  "Chapter 2", … all collapse to "Chapter #". With ≥ 4 such headings in the
+  top band on ≥ 4 pages, they clustered as boilerplate and were stripped.
+  The segmenter then found no structure and fell back to `source='none'`.
+- Fix: `MAX_BOILER_FONTSIZE = 13` — chapter headings have large fonts (≥ 16pt);
+  running headers have small fonts (≤ 10pt). Blocks above the threshold are
+  excluded from band candidates entirely.
+
+**Title page detected as chapter heading (test fixture):**
+- Root cause: the `test_no_toc_no_outline` fixture placed the book title at y=300,
+  which is inside the `HEADING_MAX_Y_FRAC = 0.50` zone. With fontsize=22 it
+  passed all heading-candidate checks and was classified as a chapter, making
+  `n_chapters = 5 > max(13/3, 3) = 4.33`, triggering the over-segmentation guard.
+- Fix: moved title text to y=500 (below the 0.50 threshold at y=421), reflecting
+  that real title pages center text in the lower half of the page.
+
+### Acceptance
+
+All 8 synthetic fixtures PASS. 527/527 tests green. No regressions.
+
+---
 
 ## Phase 19 acceptance results
 
@@ -656,7 +708,7 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 519 passed
+python -m pytest -q                  # should be 527 passed
 
 # Verify Phase 14:
 vorpal build tests/fixtures/outline.pdf --draft --end-page 3
@@ -676,9 +728,10 @@ vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth
 
 ## What to build next
 
-**Arc 3 is complete.** Phases 10–14 done, Phase 9 spike done.
-**Arc 4 (Phases 15–20)** is the next unsupervised session — see
-`docs/04-roadmap.md` for full acceptance criteria.
+**Arc 4 is complete.** Phases 15–20 done.
+**Arc 5 (Phases 21–25)** is next — see `docs/04-roadmap.md` for full
+acceptance criteria. Phase 21 (OpenAI TTS live) will likely need `VORPAL_OPENAI_KEY`
+provisioned; mark blocked honestly and continue to Phase 22+.
 
 ### Tone-backend credential status & the manual-seeding approach
 

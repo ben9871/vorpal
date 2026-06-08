@@ -48,3 +48,29 @@ size sanity, opens (zipfile for EPUB), title match.
 | `gutenberg-1342` | *Pride and Prejudice*, Jane Austen, Gutenberg id 1342 — `pride_and_prejudice_pg1342.epub` | EPUB; 16 spine items; dialogue-heavy; most-downloaded Gutenberg text | EPUB | ✅ 15 ch / 1 front; TOC labels in this EPUB contain chapter excerpts (Gutenberg format quirk) — pauses for review (correct); no crash |
 | `gutenberg-1342-txt` | *Pride and Prejudice*, Jane Austen, Gutenberg id 1342 — `pride_and_prejudice_pg1342.txt` | TXT; 772 KB, ~130 K words; same book as EPUB — format parity | TXT | ✅ 61 chapters detected, all substantial word counts; heuristic source → review pause; ≤ 2 edits needed (ch1 title has stray `]`); no crash |
 | `gutenberg-1661` | *The Adventures of Sherlock Holmes*, A. Conan Doyle, Gutenberg id 1661 — `sherlock_holmes_pg1661.epub` | EPUB; 15 spine items; short-story collection | EPUB | ✅ 13 ch / 1 front / 1 back (PG license); **auto-approves**; titles clean (I. A Scandal in Bohemia, etc.); no crash |
+
+## Synthetic hostile-case fixtures (Phase 20 — `tests/test_phase20_corpus.py`)
+
+Generated in-process with PyMuPDF. Not stored in `corpus/` — regenerated from test code.
+All run through `--stop-after segment`.
+
+| id | Description | Why chosen | Species | Pipeline result |
+|---|---|---|---|---|
+| `all_caps_headings` | ALL-CAPS chapter titles, printed TOC, 4 chapters | Normalization + TOC parse with uppercased input | synthetic digital PDF | ✅ toc path; titles found; heading text not in body |
+| `heavy_footnotes` | 3 chapters with ¹–⁴ footnote markers + footnote block at page bottom | Footnote-separator path; body integrity | synthetic digital PDF | ✅ no crash; footnotes_separated ≥ 0 |
+| `non_ascii_titles` | French chapter titles (accented characters), printed TOC | Encoding safety; NFKC normalization path | synthetic digital PDF | ✅ no crash; non-empty bodies; TOC path |
+| `many_short_chapters` | 20 single-paragraph chapters, embedded outline | Many sections; short-body flag path | synthetic digital PDF | ✅ ≥ 10 chapter sections found via outline; no crash |
+| `no_toc_no_outline` | 4 "Part N" chapters, no outline, no printed TOC | Pure heuristic heading detection (font-size outlier) | synthetic digital PDF | ✅ heuristic path; 4 chapters found; no crash |
+| `long_chapter_titles` | Titles > 80 chars, printed TOC | `safe_filename()` and downstream title handling | synthetic digital PDF | ✅ no crash; all sections have str titles; TOC path |
+| `blank_pages` | Blank pages interspersed between 4 chapters, embedded outline | Empty-page tolerance; blank pages not treated as content | synthetic digital PDF | ✅ ≥ 2 included chapters; no crash; outline path |
+| `nested_headings` | 3-level outline (ch → section → subsection), printed TOC | Level-filtering; subsections treated as content not chapters | synthetic digital PDF | ✅ ≥ 1 included chapter; no crash; level-1 only |
+
+### Bug found and fixed (Phase 20)
+
+**`vorpal/segment/boilerplate.py`** — `MAX_BOILER_FONTSIZE = 13` guard:
+Numbered chapter headings ("Chapter 1", "Chapter 2", …) normalized to
+the same string ("Chapter #") and were clustered as boilerplate when 4+
+appeared in the top band. Added a font-size guard: blocks > 13pt are
+excluded from band candidates entirely. Chapter headings have large fonts
+(typically ≥ 16pt); running headers have small fonts (≤ 10pt). Digital only
+(scanned blocks have `font_size=None`).

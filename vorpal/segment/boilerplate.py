@@ -33,6 +33,11 @@ MIN_PAGE_FRAC = 0.04
 # Candidate lines longer than this (normalized) are body text that merely
 # starts/ends in a band, not running headers — never clustered.
 MAX_HEADER_CHARS = 60
+# Blocks with font_size above this are chapter headings, not running headers.
+# Protects "Chapter N"-style titles from being normalized to "Chapter #" and
+# then clustered with each other as boilerplate. Digital only (scanned blocks
+# have font_size=None, so the guard is never applied to scanned books).
+MAX_BOILER_FONTSIZE = 13
 # Standalone page number, tolerating OCR junk around it: "30.", "| 42", ": 4".
 PAGE_NUMBER_RE = re.compile(r"^[\W_]{0,3}\d{1,4}[\W_]{0,3}$")
 
@@ -72,6 +77,10 @@ def _band_candidates(page) -> list:
     bot_y = page.height * (1 - BOTTOM_BAND)
     out = []
     for block in page.blocks:
+        # Skip large-font blocks — they're chapter headings, not running headers.
+        # (Digital only: scanned blocks have font_size=None.)
+        if block.font_size is not None and block.font_size > MAX_BOILER_FONTSIZE:
+            continue
         x0, y0, x1, y1 = block.bbox
         lines = block.text.split("\n")
         if y0 < top_y:                       # starts in the top band
