@@ -1086,16 +1086,34 @@ wrote).
 **Two-part fix:**
 
 **Part 1 — Paragraph-boundary chunking (`vorpal/normalize.py`):**
-- A blank-line paragraph break must flush the chunk accumulator, even if the
-  current pack is below `CHUNK_MAX_CHARS`.
-- Sentences must never cross a paragraph boundary in the same chunk.
+
+The chunking hierarchy, in strict priority order:
+
+1. **Paragraph boundary always flushes.** A blank-line paragraph break emits
+   the current accumulator (if non-empty) before starting a new chunk, even
+   if the accumulator is well under `CHUNK_MAX_CHARS`. Paragraphs are never
+   merged across the boundary.
+
+2. **When a paragraph exceeds `CHUNK_MAX_CHARS`, split only at sentence
+   boundaries.** Use the pysbd sentence list for that paragraph and pack
+   sentences greedily. When adding the next sentence would exceed the limit,
+   emit the current pack as a chunk and start a new one with that sentence.
+   A sentence is never cut in the middle — if a single sentence alone exceeds
+   `CHUNK_MAX_CHARS`, emit it as its own chunk intact rather than truncating.
+
+3. **Never split mid-sentence under any circumstances.** This is a hard
+   invariant. A very long sentence produces one large chunk; that is
+   preferable to a broken sentence that sounds incoherent.
+
 - Add `PARAGRAPH_BREAK` sentinel: when `normalize_chapter()` encounters a
   paragraph boundary, emit the current chunk (if non-empty) before starting a
   new one.
 - Cache keys are unchanged (keyed on text content, not boundary logic).
-- Existing unit tests must still pass; add tests covering: multi-paragraph input
-  produces separate chunks per paragraph; single over-long sentence still splits
-  at CHUNK_MAX_CHARS as before.
+- Unit tests must cover: (a) multi-paragraph input → separate chunks per
+  paragraph regardless of length; (b) long paragraph → split at sentence
+  boundaries only, never mid-sentence; (c) single sentence exceeding limit →
+  emitted as one oversized chunk, no truncation; (d) existing regression suite
+  still green.
 
 **Part 2 — Crossfade stitching at chapter assembly (`vorpal/synth.py` or
 `vorpal/master.py`):**

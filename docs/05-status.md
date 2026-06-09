@@ -1596,16 +1596,24 @@ A mid-sentence stop/restart artifact was observed in synthesized audio. Cause:
 TTS models have different prosody at the start/end of each generation call; a
 hard-cut join between adjacent chunk WAVs is audible even at sentence boundaries.
 
+**Chunking rule (strict hierarchy — `vorpal/normalize.py`):**
+1. Paragraph boundary always flushes the accumulator, even if under the limit.
+2. When a paragraph exceeds `CHUNK_MAX_CHARS`, split only at sentence boundaries
+   (pysbd). Pack sentences greedily; when adding the next sentence would exceed
+   the limit, emit and start a new chunk.
+3. **Never cut mid-sentence under any circumstances.** A single sentence that
+   alone exceeds the limit is emitted as one oversized chunk intact — an
+   over-long chunk is always preferable to broken prose.
+
 **What to build:**
-1. `vorpal/normalize.py` — paragraph boundaries must flush the chunk accumulator.
-   A blank-line paragraph break always emits the current chunk (if non-empty)
-   before starting a new one. Sentences within a paragraph still pack up to
-   `CHUNK_MAX_CHARS` as before. Cache keys are unchanged.
-2. `vorpal/synth.py` (or chapter assembly) — add `crossfade_ms=25` crossfade
-   when concatenating adjacent intra-paragraph chunk WAVs. Linear crossfade,
-   applied at assembly time. Inter-paragraph silence unchanged.
-3. Unit tests: crossfade output length is correct; paragraph boundary produces
-   separate chunks; existing regression suite still green.
+1. `vorpal/normalize.py` — implement the three-level chunking hierarchy above.
+   Cache keys unchanged.
+2. `vorpal/synth.py` (or chapter assembly) — add `crossfade_ms=25` linear
+   crossfade when concatenating adjacent intra-paragraph chunk WAVs at assembly
+   time. Inter-paragraph silence unchanged.
+3. Unit tests: (a) paragraph boundary flushes; (b) long paragraph splits only at
+   sentences; (c) oversized single sentence → one intact chunk; (d) crossfade
+   output length correct; (e) regression suite green.
 4. H-019: synthesize a short before/after comparison and file for human listen.
 5. **Delete `trotsky_v1_workdir/chapters/`** (4 pre-fix chapter WAVs) so they
    re-render with corrected stitching in Phase 44.
