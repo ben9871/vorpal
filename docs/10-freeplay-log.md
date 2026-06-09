@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 36 — 2026-06-09
+Wrote `playground/bestiary_the_interval.txt`: a bestiary entry for the Interval, the creature that lives between Act I and Act II and eats intermissions. Endangered since `build_play_chapters()` started concatenating acts with nothing between them but a chapter marker; the Cheshire Cat admires its commitment to existing by not being there, but considers it excessive.
+
 ## Phase 35 — 2026-06-09
 Wrote `playground/seven_hundred_milliseconds.txt`: the router now inserts PAUSE_TURN_MS = 700 ms between speakers, and the piece claims the Dormouse lives there — in every gap between two people who are certain they are the ones speaking, sleeping and waking in that order, measured to the millisecond.
 
