@@ -34,6 +34,14 @@ _GENDER_TABLE: dict = {
     "SNUG": "m", "STARVELING": "m", "EGEUS": "m", "PHILOSTRATE": "m",
     "BENEDICK": "m", "CLAUDIO": "m", "LEONATO": "m", "DOGBERRY": "m",
     "BALTHASAR": "m", "BORACHIO": "m", "CONRADE": "m", "VERGES": "m",
+    # As You Like It (PG #1523) — added in Phase 40: ROSALIND was scanning
+    # masculine because stage directions track her Ganymede disguise
+    "ROSALIND": "f", "CELIA": "f", "AUDREY": "f", "PHEBE": "f",
+    "ORLANDO": "m", "OLIVER": "m", "JAQUES": "m", "TOUCHSTONE": "m",
+    "SILVIUS": "m", "CORIN": "m", "ADAM": "m", "AMIENS": "m",
+    "CHARLES": "m", "WILLIAM": "m",
+    # Twelfth Night (PG #1526)
+    "FABIAN": "m", "CLOWN": "m",
     # Female
     "GERTRUDE": "f", "OPHELIA": "f",
     "DESDEMONA": "f", "EMILIA": "f", "BIANCA": "f",
@@ -111,10 +119,24 @@ def _guess_gender(name: str, play_doc: PlayDoc) -> str:
     if canonical in _GENDER_TABLE:
         return _GENDER_TABLE[canonical]
 
+    words = canonical.split()
+
+    # Gendered title prefix: "SIR TOBY", "LADY CAPULET" — decisive on its own
+    # (Phase 40: "SIR TOBY" missed the table's "TOBY" entry, then a pronoun
+    # scan returned f)
+    if words:
+        if words[0] in ("SIR", "LORD", "MASTER", "FATHER", "FRIAR", "DON"):
+            return "m"
+        if words[0] in ("LADY", "DAME", "MISTRESS", "MISS", "MRS", "MOTHER"):
+            return "f"
+        # Table lookup on the last word: "SIR TOBY" → TOBY
+        if words[-1] in _GENDER_TABLE:
+            return _GENDER_TABLE[words[-1]]
+
     # Generic role labels: "KING", "QUEEN", "FIRST CLOWN", "SECOND GENTLEMAN"…
     if canonical in _GENERIC_GENDER:
         return _GENERIC_GENDER[canonical]
-    last_word = canonical.split()[-1] if canonical.split() else ""
+    last_word = words[-1] if words else ""
     if last_word in _GENERIC_GENDER:
         return _GENERIC_GENDER[last_word]
 

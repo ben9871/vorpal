@@ -74,3 +74,54 @@ appeared in the top band. Added a font-size guard: blocks > 13pt are
 excluded from band candidates entirely. Chapter headings have large fonts
 (typically ≥ 16pt); running headers have small fonts (≤ 10pt). Digital only
 (scanned blocks have `font_size=None`).
+
+## Play corpus (Phase 40 — `corpus/plays/`, gitignored; regenerate with `vorpal fetch-play <slug>`)
+
+All Project Gutenberg public-domain plain text, stripped of PG boilerplate by
+the fetcher. Parse results verified 2026-06-09 (acts/scenes are the canonical
+counts; speakers = distinct labels found, incl. group speakers like ALL).
+
+| Play | PG ID | Why chosen | Parse result |
+|---|---|---|---|
+| Hamlet | 1524 | large cast, 5 acts, prose+verse mix | 5 acts / 20 scenes / 35 speakers ✅ |
+| A Midsummer Night's Dream | 1514 | songs, fairies, high direction density | 5 acts / 9 scenes / 31 speakers ✅ |
+| Macbeth | 1533 | witches as numbered+group speakers, strong emotion cues | 5 acts / 28 scenes / 39 speakers ✅ |
+| Twelfth Night | **1526** | high prose, disguise plot, songs (O mistress mine) | 5 acts / 18 scenes / 19 speakers ✅ |
+| The Importance of Being Earnest | 844 | non-Shakespeare: Wilde formatting (ordinal acts, bare SCENE, multi-line brackets) | 3 acts / 3 scenes / 9 speakers ✅ |
+| As You Like It | 1523 | bonus: arrived via the catalogue bug below; disguise plot stresses gender heuristics | 5 acts / 22 scenes / 25 speakers ✅ |
+
+### Breakages found & fixed (each minimized into `tests/test_phase40_plays.py`)
+
+1. **Catalogue ID wrong:** the roadmap's Twelfth Night ID #1523 is actually
+   *As You Like It*. Twelfth Night is **#1526**. Catalogue corrected; both
+   plays kept in the corpus.
+2. **Plain-text Contents block → phantom acts** (Macbeth, MND): `ACT I` at
+   column 0 in the TOC parsed as real act headers → 10 acts. Fix:
+   `_drop_speechless_acts` post-parse pass (an act with zero speech beats is
+   not narratable — TOC acts only ever hold orphan directions).
+3. **Dramatis Personæ after the TOC** (Macbeth, Twelfth Night): cast-list
+   entries ("MALCOLM, his Son.") parsed as speakers with speeches inside the
+   last TOC act. Fix: `_PERSONAE_RE` heading exits play-body mode until the
+   next real ACT header.
+4. **Wilde format** (Earnest parsed to 0 acts): ordinal act headers
+   (`FIRST ACT`), bare `SCENE` headers with the location as following prose,
+   multi-line `[bracketed]` directions, `ACT DROP` end-of-act markers. Fixes:
+   `_ACT_WORD_RE`, `_SCENE_BARE_RE` (+auto-numbering), a multi-line direction
+   buffer, orphan-prose-→-direction beats (scene descriptions are never
+   dropped), `ACT DROP` excluded from speaker detection.
+5. **Songs misattributed/dropped** (Twelfth Night): `CLOWN. [_sings._]` is a
+   speaker label + inline cue (was: appended to the *previous* speaker's
+   speech), and indented `_italic_` song lines parsed as stage directions
+   (would be silently dropped under `--stage-directions skip`). Fixes:
+   `_SPEAKER_INLINE_DIR_RE` splits label+cue; underscore-tracked song state
+   keeps sung lines inside the singer's speech, underscores stripped.
+6. **Gender heuristics** (Twelfth Night, As You Like It): "SIR TOBY" missed
+   the table's TOBY entry and pronoun-scanned to f; ROSALIND scanned m because
+   directions track her Ganymede disguise. Fixes: gendered title prefixes
+   (SIR/LORD/… → m, LADY/DAME/… → f) decisive before any scan; last-word
+   table lookup; As You Like It + Twelfth Night names added to the canonical
+   table.
+
+Group speakers (ALL, BOTH, WITCHES) parse and cast as ordinary cameo
+characters sharing pool voices — the roadmap's "dedicated group voice" idea
+is deferred (works correctly today, just not blended).

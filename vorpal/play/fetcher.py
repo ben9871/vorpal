@@ -15,7 +15,10 @@ CATALOGUE: dict = {
     "midsummer-nights-dream": 1514,
     "a-midsummer-nights-dream": 1514,
     "macbeth": 1533,
-    "twelfth-night": 1523,
+    # PG #1523 is As You Like It, not Twelfth Night — found in the Phase 40
+    # corpus run (the roadmap's guess was wrong). Twelfth Night is #1526.
+    "twelfth-night": 1526,
+    "as-you-like-it": 1523,
     "the-tempest": 23042,
     "tempest": 23042,
     "much-ado": 1882,

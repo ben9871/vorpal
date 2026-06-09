@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 39 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 40 done — **Arc 7 complete**).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -53,16 +53,63 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit `520342a` |
 | Arc 7: Phase 37 — tone/emotion from stage direction context | ✅ done | commit `8be6185` |
 | Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit `d761a71` |
-| Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit Phase 39 |
-| **Arc 7: Phase 40** — play corpus hardening loop | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit `51d22f6` |
+| Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
 
-**Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
-`docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
-stage plays: Project Gutenberg download, character extraction, voice casting,
-multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
-`vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
-hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
+**Arc 7 (theatrical mode, Phases 31–40) complete.** vorpal now builds
+multi-voice play audiobooks: `vorpal fetch-play` / `cast` / `cast-audition` /
+`play` cover download → parse → cast → audition → review gate → multi-voice
+synthesis → m4b. Six-play Gutenberg corpus parses clean (see
+`docs/06-corpus.md` play section). Outstanding human items: H-012 (cast
+audition listen) gates the first full-Hamlet synthesis. Phases 21 and 22
+remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 40 acceptance results
+
+**894 tests green** (894 = 874 Phase-39 + 20 new in `tests/test_phase40_plays.py`).
+
+### What was done
+
+Loop-until-dry hardening over a 6-play Gutenberg corpus: Hamlet, A Midsummer
+Night's Dream, Macbeth, Twelfth Night, The Importance of Being Earnest, plus
+As You Like It (arrived via a catalogue bug, kept for diversity). All six
+parse to canonical act/scene counts; all six cast and chapter cleanly.
+Full per-play table + breakage list: `docs/06-corpus.md` §"Play corpus".
+
+### Breakages found → fixed → fixture-tested
+
+1. **Catalogue ID wrong**: roadmap's Twelfth Night #1523 is actually
+   As You Like It; corrected to **#1526**, both kept (`fetcher.py`)
+2. **TOC `ACT I` lines → phantom acts** (Macbeth/MND showed 10 acts):
+   `_drop_speechless_acts` post-parse pass (`parser.py`)
+3. **Dramatis Personæ entries parsed as speakers**: `_PERSONAE_RE` exits
+   play-body mode until the next ACT header (`parser.py`)
+4. **Wilde format — Earnest parsed to 0 acts**: ordinal act headers
+   (`FIRST ACT`), bare `SCENE` + location-prose-as-direction (orphan prose
+   is never dropped), multi-line `[bracketed]` directions, `ACT DROP`
+   excluded from speakers (`parser.py`)
+5. **Songs**: `CLOWN. [_sings._]` label+cue split (was misattributing the
+   song to the previous speaker); indented `_italic_` lines stay inside the
+   singer's speech instead of becoming droppable directions (`parser.py`)
+6. **Gender heuristics**: SIR/LADY title prefixes decisive (SIR TOBY was f);
+   ROSALIND female despite Ganymede-disguise pronoun noise; As You Like It +
+   Twelfth Night names added to the canonical table (`characters.py`)
+
+### Acceptance
+
+- 894 tests green ✅ (20 minimized fixtures, no network in pytest)
+- All 6 plays parse without error: hamlet 5/20/35 (acts/scenes/speakers),
+  midsummer 5/9/31, macbeth 5/28/39, twelfth-night 5/18/19, earnest 3/3/9,
+  as-you-like-it 5/22/25 ✅
+- All 6 plays: extract_cast + assign_voices + build_play_chapters smoke-clean;
+  every protagonist correctly gendered and voiced ✅
+- Group speakers (ALL/BOTH/WITCHES) parse and cast (as ordinary characters —
+  the "dedicated group voice" idea deferred, recorded in corpus doc) ✅
+- `docs/06-corpus.md` play section filled in ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 39 acceptance results
 
