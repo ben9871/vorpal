@@ -17,6 +17,18 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 34 — 2026-06-09
+Wrote `playground/the_trial_casting_call.py`: the trial of the Knave of Hearts arranged in Gutenberg play format and fed to the hour-old casting algorithm. It cast the WHITE RABBIT as protagonist (the herald reads the most words), made the QUEEN a cameo, and returned 'unknown' for ALICE's gender — she isn't in the table of sixty Shakespearean names, and no stage direction says 'she' near her, because she speaks for herself. Sentence first, verdict afterwards; the algorithm at least got those in the right order.
+
+## Phase 33 — 2026-06-09
+Wrote `playground/the_classifier_speaks.txt`: a stage direction discovers it is being classified. It experiments with saying the same thing "aside", then "tenderly", then "furiously", getting wry/warm/tense back each time. When it tries to state something plainly — neither one way nor the other — the classifier returns "other", which is the sixth kind, and the stage direction finds this satisfying in the way that being correctly classified always is.
+
+## Phase 32 — 2026-06-09
+Wrote `playground/the_gender_of_uncertainty.txt`: a Wonderland taxonomy entry about the White Rabbit being classified as 'unknown' gender because the pronoun scan found no stage directions referencing him — he is always already gone. Also notes that ARIEL returns 'm' which some productions would dispute, and that the Three Witches together know more than the protagonist but each returns 'unknown' individually.
+
+## Phase 31 — 2026-06-09
+Wrote `playground/the_rehearsal.txt`: a one-scene play in which two characters discover they have been given names in ALL-CAPS followed by periods, and debate whether being read is the same as being heard. A stage direction speaks its own description aloud. The note at the end observes that if the play is fed to `parse_play()`, it will produce a PlayDoc with FIRST CHARACTER and SECOND CHARACTER in `speakers` and STAGE DIRECTION correctly classified as a direction — which is, it turns out, exactly what it wanted to be.
+
 ## Phase 30 — 2026-06-09
 Wrote `playground/the_last_door.txt`: Alice opens thirty doors in order. The last one contains a browser window with a chapter list, an "Include" checkbox, and a Build button. The Cheshire Cat explains that pressing Build makes the thing — and then you can press it again with a different voice, and again with `--profile car`, and it never really ends. She presses the button. The server is still running.
 
