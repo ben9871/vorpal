@@ -224,22 +224,35 @@ the agent adds its result here rather than creating a new entry.
 ---
 
 ### [H-009] Phase 23 — StyleTTS2 voice verdict
-**Added:** 2026-06-08  **Status:** open  *(pending Phase 23)*
+**Added:** 2026-06-08  **Status:** open
 
 **What to review / do:**
-After Phase 23 lands: listen to the StyleTTS2-designed voice sample in
-`playground/` alongside `playground/final_vorpal_narrator_v1.wav` (Phase 9
-PCA voice) and `playground/final_bm_george_baseline.wav`. Three-way comparison.
+Phase 23 is done. Listen to:
+- `playground/s2_default_a0.3_b0.7.wav` — StyleTTS2 default style (LJSpeech ref)
+- `playground/s2_textdriven_a0.9_b0.9.wav` — StyleTTS2 text-driven style
+- `playground/final_vorpal_narrator_v1.wav` — Phase 9 Kokoro PCA voice (male)
+- `playground/final_bm_george_baseline.wav` — bm_george baseline (male)
+
+**Important context:** The StyleTTS2 samples use a female reference voice (LJSpeech
+public domain). They sound female-pitched (~190 Hz). The Kokoro voices are male
+(~140-152 Hz). A proper male-voice StyleTTS2 sample would require obtaining a
+short LibriVox male speaker clip. The current samples demonstrate StyleTTS2
+*capability*, not a directly comparable male narrator character.
 
 **Decision options:**
-- **StyleTTS2 voice wins:** name it, approve registry integration — the agent
-  will add it to `vorpal/tts/voices.py`.
-- **PCA voice still preferred:** if H-001 was approved, proceed with that.
-  StyleTTS2 voice stays in `playground/`.
-- **Neither:** bm_george + bm_daniel blend is sufficient.
+- **StyleTTS2 quality is clearly better, proceed with male reference:**
+  Agent will download a short LibriSpeech test-clean male speaker clip (public
+  domain), extract the style, and synthesize a male narrator comparison sample.
+  This unlocks a proper three-way comparison.
+- **Kokoro PCA voice is still the better path:**
+  If H-001 was approved (Kokoro PCA voice), proceed with that. StyleTTS2
+  stays in `playground/` as a researched option.
+- **Neither approach is compelling:**
+  Keep the existing registry voices (`bm_george`, `bm_daniel` blend).
 
-**Agent's assumption:** Phase 23 not yet run. Pre-registered to ensure the
-result lands here rather than only in the spike doc.
+**Agent's assumption:** StyleTTS2 model is installed and working (34% VRAM peak,
+0.72 GB idle). All synthesis code is in `playground/styletts2_spike.py`.
+Integration into `vorpal/` is NOT done — this stays gated on your verdict.
 
 **Outcome (fill in when done):** …
 

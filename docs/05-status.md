@@ -35,12 +35,91 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 4: Phase 18 — library / batch mode (`vorpal library`) | ✅ done | commit Phase 18 |
 | Arc 4: Phase 19 — manifest as first-class artifact (`vorpal export`) | ✅ done | commit Phase 19 |
 | Arc 4: Phase 20 — corpus-hardening loop | ✅ done | commit Phase 20 |
-| **Arc 5: Phase 21** (OpenAI TTS live acceptance) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 5: Phase 21 — OpenAI TTS live acceptance | 🚫 blocked | `VORPAL_OPENAI_KEY` not provisioned — see H-002 |
+| Arc 5: Phase 22 — tone with instruction engine | 🚫 blocked | depends on Phase 21 |
+| Arc 5: Phase 23 — StyleTTS2 voice design spike | ✅ done (pending human verdict) | commit Phase 23 — see H-009 |
+| **Arc 5: Phase 24** (dialogue-aware delivery) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 4 complete.** Phases 15–20 done.
-**Arc 5 is next** — Phase 21 (OpenAI TTS live acceptance) is likely blocked on
-`VORPAL_OPENAI_KEY`; Phase 22 (tone on real engine) depends on Phase 21.
+**Arc 5 in progress.** Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` (H-002);
+Phase 23 done (human verdict on StyleTTS2 samples pending — H-009);
+Phase 24 (dialogue-aware delivery) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 23 acceptance results
+
+**527 tests green** (no new tests — playground-isolated spike; `vorpal/` untouched).
+
+### What was done
+
+- Installed `styletts2 0.1.6` (PyPI) + `nltk punkt_tab`; reinstalled `torchaudio 2.5.1+cu121`
+  (styletts2 install pulled incompatible 2.11.0 which required libcudart.so.13).
+- Downloaded StyleTTS2-LibriTTS model (~1.2 GB checkpoint, Apache-2.0) + submodels
+  (ASR ~95 MB, F0 ~21 MB, PLBERT ~25 MB) to `~/.cache/`.
+- Ran 4 synthesis variants + gradient descent optimization on the default
+  LJSpeech reference (public domain female voice).
+- Gradient descent on 256-dim style embedding: loss converged 57.6 → 0.07 in 30 steps.
+  The optimization is functional; duration calibration needs work (predictor vs. acoustic
+  timing ~30% discrepancy).
+
+### Acoustic measurements (248-char Firestone test passage)
+
+| Model | Config | Duration | RMS | Pitch | 
+|-------|--------|----------|-----|-------|
+| Kokoro | vorpal_narrator_v1 (Phase 9) | 14.2s | 0.0610 | 152 Hz |
+| Kokoro | bm_george baseline | 20.1s | 0.0579 | 140 Hz |
+| StyleTTS2 | default α=0.3, β=0.7 | 13.3s | 0.0526 | 193 Hz |
+| StyleTTS2 | text-driven α=0.9, β=0.9 | 12.4s | 0.0435 | 190 Hz |
+| StyleTTS2 | ref-driven α=0.1, β=0.1 | 13.6s | 0.0512 | 234 Hz |
+| StyleTTS2 | high-emotion scale=2.0 | 12.2s | 0.0662 | 216 Hz |
+| StyleTTS2 | GD-optimized (target 14.5s) | 19.1s | 0.0502 | 182 Hz |
+
+### Hardware budget
+
+- VRAM peak: 2.02/6.0 GB (34%) — well under 80% ✅
+- Model idle: 0.72 GB (12%); per-inference: 1.06 GB (18%)
+- Inference time: 0.7–2.0s per 248-char passage on GPU ✅
+
+### Critical finding
+
+All StyleTTS2 outputs have pitch 182–234 Hz (female-range) because the reference
+is LJSpeech (female). For a male narrator, a male public-domain LibriVox reference
+is needed. Next step: obtain a 5–30s sample from a male LibriSpeech test-clean
+speaker (public domain) and re-run the comparison.
+
+### Acceptance
+
+- Spike doc updated: `docs/08-voice-training-spike.md` §10 with real numbers ✅
+- `vorpal/` package untouched ✅
+- No money spent ✅
+- VRAM budget respected (34% peak) ✅
+- Go/no-go provided: conditional go, pending male reference audio and human verdict ✅
+- **(human, H-009)** Listen to `playground/s2_default_a0.3_b0.7.wav` and compare
+  to `playground/final_vorpal_narrator_v1.wav` (Phase 9). Does StyleTTS2 quality
+  merit further integration work?
+
+---
+
+## Phase 22 acceptance results
+
+**(blocked: depends on Phase 21)** — `warm` and `wry` tones on `APIEngine`
+not testable until `VORPAL_OPENAI_KEY` is provisioned (H-002). No code changes.
+See Phase 11 for the 5/7-pass baseline on `KokoroApproxEngine`.
+
+---
+
+## Phase 21 acceptance results
+
+**(blocked: `VORPAL_OPENAI_KEY` not set)** — `APIEngine` code is complete
+(Phase 7), cost machinery works, mock-engine tests green. Live acceptance
+requires the key; see H-002 in the review queue.
+
+No new code. All Phase 7 live items remain `(blocked: VORPAL_OPENAI_KEY not set)`:
+- 1-chapter Firestone build via `APIEngine`
+- Network-abort + cache-resume
+- Manual-tone acoustic delta against real engine
+
+---
 
 ## Phase 20 acceptance results
 

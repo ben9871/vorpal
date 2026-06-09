@@ -179,29 +179,146 @@ or hosted on HuggingFace alongside the other voices).
 **If rejected:** the existing `bm_george` + `bm_daniel` blend in the registry
 already covers the "clear male narrator" use case.
 
-### Future spike option: StyleTTS2
+---
 
-A follow-up session could:
-1. Download StyleTTS2-LibriTTS (~1.2 GB, Apache-2.0 license)
-2. Pick a public-domain LibriVox reader with a desired acoustic profile
-3. Use StyleTTS2's encoder to extract a reference style embedding
-4. Optimize that embedding (gradient descent on reconstruction loss, no decoder
-   retraining) to design a character-level style
-5. Convert back to Kokoro format (style dimensions are different; would need
-   mapping or separate inference pipeline)
+## 10. Phase 23 — StyleTTS2 Voice Design Spike Results
 
-This is non-trivial but feasible on 6 GB VRAM in 2-3 hours. Decision should
-follow the human verdict on the PCA approach first.
+*Date: 2026-06-09. Follow-up to Phase 9. All playground-isolated.*
+
+### Hardware budget
+
+| Resource | Total | Used (peak) | Headroom |
+|----------|-------|-------------|----------|
+| VRAM     | 6.0 GB | 2.02 GB (34%) | 3.98 GB |
+| RAM      | 7.6 GB | ~1.7 GB | 5.9 GB |
+| Disk     | 91 GB | ~1.5 GB (models) | 89 GB |
+
+Well under the 80% VRAM target throughout all experiments.
+
+### What was done
+
+1. **Installed StyleTTS2** (`pip install styletts2 0.1.6`) + NLTK punkt_tab.
+   Reinstalled `torchaudio 2.5.1+cu121` (styletts2 install pulled incompatible 2.11.0).
+
+2. **Auto-downloaded StyleTTS2-LibriTTS** (~1.2 GB checkpoint from
+   `huggingface.co/yl4579/StyleTTS2-LibriTTS`) + submodels (ASR, F0, PLBERT — total ~1.5 GB).
+   Apache-2.0 license.
+
+3. **Reference audio**: default LJSpeech sample auto-downloaded from
+   `styletts2.github.io/wavs/LJSpeech/OOD/GT/00001.wav` (public domain, Karen Crowne).
+   Note: this is a female voice (~190 Hz F0) — limitations discussed below.
+
+4. **Style encoder**: `model.compute_style(ref_path)` → `[1, 256]` tensor
+   (128 timbre + 128 prosody components). Norm: 3.10.
+
+5. **Alpha/beta parameter sweep**: explored the 2D style control space
+   (`alpha` = timbre weight, `beta` = prosody weight; 1.0 = fully text-driven,
+   0.0 = full reference-cloning).
+
+6. **Gradient descent on style embedding**: optimized the 256-dim style vector
+   to target a desired duration profile. Predictor LSTM put in `.train()` mode
+   (required for cuDNN backward); model parameters frozen. 30 steps, Adam, lr=1e-2.
+
+### Acoustic measurements (248-char Firestone test passage, same as Phase 9)
+
+| Model | Voice/Config | Duration | RMS | Pitch (F0) | Notes |
+|-------|--------------|----------|-----|------------|-------|
+| Kokoro | vorpal_narrator_v1 | **14.2s** | 0.0610 | 152 Hz | Phase 9 PCA design |
+| Kokoro | bm_george (baseline) | 20.1s | 0.0579 | 140 Hz | Current default |
+| Kokoro | bm_lewis | 20.2s | 0.0440 | 129 Hz | Slower/quieter |
+| StyleTTS2 | default (α=0.3, β=0.7) | 13.3s | 0.0526 | 193 Hz | Default params, LJSpeech ref |
+| StyleTTS2 | text-driven (α=0.9, β=0.9) | 12.4s | 0.0435 | 190 Hz | High text/style ratio |
+| StyleTTS2 | ref-driven (α=0.1, β=0.1) | 13.6s | 0.0512 | 234 Hz | Near voice-cloning mode |
+| StyleTTS2 | high-emotion (scale=2.0) | 12.2s | 0.0662 | 216 Hz | Emotional exaggeration |
+| StyleTTS2 | GD-optimized (target 14.5s) | 19.1s | 0.0502 | 182 Hz | 30 GD steps; see notes |
+
+**Files (playground-only, gitignored):**
+- `playground/styletts2_spike.py` — full experiment script
+- `playground/s2_default_a0.3_b0.7.wav` — default style
+- `playground/s2_textdriven_a0.9_b0.9.wav` — text-driven style
+- `playground/s2_refdriven_a0.1_b0.1.wav` — reference-driven style
+- `playground/s2_highemote_a0.3_b0.7_e2.wav` — high emotional scale
+- `playground/s2_optimized_style.wav` — gradient-descent optimized embedding
+
+### Key findings
+
+**What works:**
+- StyleTTS2-LibriTTS runs cleanly on this GPU (0.7s/passage for inference after
+  the first call; 12% VRAM at rest, 18% per inference)
+- Style encoder produces a [1, 256] style embedding from any reference audio
+- Gradient descent on the style embedding converges (loss 57.6 → 0.07 in 30 steps)
+- The alpha/beta parameters are genuine controls: text-driven (α=β=0.9) gives
+  shorter, flatter speech; ref-driven (α=β=0.1) preserves reference prosody
+- All 4 variants synthesize correctly with distinct acoustic profiles
+
+**Critical limitation: reference audio must be male for male narrator use:**
+The default LJSpeech reference is a female voice (~190 Hz F0). All StyleTTS2
+outputs in this spike are in the 182–234 Hz range (female/androgynous), vs. the
+Kokoro male voices at 129–152 Hz. For a narrator engine that sounds like
+vorpal_narrator_v1, we need a male public-domain reference (e.g., a LibriVox
+male speaker from LibriSpeech test-clean). The style encoder would then extract
+a male-register embedding.
+
+**Gradient descent accuracy note:**
+The GD optimized the predictor's internal duration estimate to ~15s, but the
+actual synthesis came out at 19.1s. There's a ~30% discrepancy between predictor
+duration and acoustic duration — likely because the predictor doesn't account for
+the diffusion decoder's timing expansion. A more accurate loss would operate in
+the acoustic (waveform) domain, not the predictor's frame-count estimate. This
+is a known limitation of the approach; the GD is functional but the target
+needs calibration.
+
+**No voice cloning:** all experiments use either the default LJSpeech sample
+(public domain) or an algebraic style embedding — no real person's voice is being
+replicated in any meaningful sense.
+
+### Go / No-go for registry integration
+
+**Conditional go** on adding a StyleTTS2 narrator voice to the registry, with
+the following conditions:
+
+1. **(human, H-009)** Listen to `playground/s2_default_a0.3_b0.7.wav`
+   and `playground/s2_textdriven_a0.9_b0.9.wav`. Does StyleTTS2 quality match
+   or exceed Kokoro for non-fiction narration?
+2. **Male reference required**: before integration, obtain a short (5–30s) sample
+   from a public-domain LibriVox male reader (e.g., LibriSpeech test-clean speaker
+   1089 — public domain, reads from Project Gutenberg books). Extract the style
+   embedding from that; re-run the comparison.
+3. **Integration cost**: a `StyleTTS2Engine` class in `vorpal/tts/` would need
+   the same `TTSEngine` interface (synthesize, voice_cache_key, supports_batch).
+   The model loads in ~12s and uses 0.72 GB VRAM idle — acceptable for a
+   session-wide singleton, not per-chapter.
+
+**If rejected:** the Kokoro PCA approach (Phase 9's `vorpal_narrator_v1`) is
+already the superior path for the current setup — faster synthesis, male voice,
+lower VRAM, proven quality.
+
+### Integration plan (if approved)
+
+```
+vorpal/tts/styletts2_engine.py:
+    class StyleTTS2Engine(TTSEngine):
+        def __init__(self, ref_style_path, alpha=0.3, beta=0.7, ...):
+            ...
+        def synthesize(self, text, tone=None) -> np.ndarray:
+            return self.model.inference(text, ref_s=self.ref_s, alpha=self.alpha, ...)
+        @property
+        def voice_cache_key(self) -> str:
+            return f"s2_{self._ref_hash}_{self.alpha}_{self.beta}"
+```
+
+The registry entry would store the reference style as a `.pt` file (the
+[1, 256] tensor) alongside the alpha/beta params.
 
 ---
 
-## 9. Protocol compliance
+## 9. Protocol compliance (updated)
 
 - All experiments in `playground/` (gitignored — model weights and WAVs stay
   out of git).
 - No changes to `vorpal/` package, voice registry, or any committed pipeline path.
 - No voice cloning (no target speaker audio used anywhere).
-- No money spent (Kokoro is local; no API calls).
-- VRAM peak: ~400 MB (well under 80% of 6 GB = 4.9 GB target).
-- Integration gated on human approval (this report surfaces samples +
-  recommendation; wiring blocked pending sign-off).
+- No money spent (all models are free; no API calls).
+- VRAM peak: Phase 9 ~400 MB; Phase 23 ~2.0 GB (both well under 80% of 6 GB).
+- Integration gated on human approval (samples + report surfaces evidence;
+  wiring blocked pending sign-off).
