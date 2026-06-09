@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 27 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 28 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -42,13 +42,54 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 5: Phase 25 — footnote narration mode | ✅ done | commit Phase 25 |
 | Arc 6: Phase 26 — Piper draft engine | ✅ done (pending live Piper test) | commit Phase 26 — see H-011 |
 | Arc 6: Phase 27 — loudness profiles | ✅ done | commit Phase 27 |
-| **Arc 6: Phase 28** (cover art & metadata) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 6: Phase 28 — cover art & metadata | ✅ done (pending VLC tag verify) | commit Phase 28 |
+| **Arc 6: Phase 29** (chapter summaries) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
 Phases 23–25 done).
-**Arc 6 in progress.** Phases 26–27 done (Phase 26 pending human Piper live test — H-011);
-Phase 28 (cover art & metadata) next.
+**Arc 6 in progress.** Phases 26–28 done (Phase 26 pending human Piper live test — H-011);
+Phase 29 (chapter summaries) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 28 acceptance results
+
+**641 tests green** (641 = 623 Phase-27 + 18 new in `tests/test_phase28.py`).
+
+### What was built
+
+Richer cover art and M4B metadata embedding.
+
+- `vorpal/master.py`:
+  - `_write_ffmetadata` — new fields: `narrator` (→ `composer`), `year` (→ `date`),
+    `language`, `publisher`; empty strings silently omitted
+  - `_score_cover_page(page, title)` — heuristic: image coverage bonus, title
+    presence bonus, short-text-fragment penalty (copyright/TOC pages)
+  - `_render_cover` — now scores pages 0–4 and picks the best; logs page number
+    when it departs from page 1
+  - `extract_epub_cover(epub_path, work_dir)` — reads OPF manifest, finds item
+    with `properties="cover-image"` or `id` containing "cover", extracts to `work_dir`
+  - `compile_m4b` — new params: `narrator`, `year`, `language`, `publisher`,
+    `cover_path` (explicit override, supersedes PDF render)
+- `vorpal/cli.py`:
+  - `--year`, `--language` (default `en`), `--publisher`, `--cover` flags
+  - EPUB builds now try `extract_epub_cover` before mastering
+  - Cover priority: `--cover` CLI > EPUB-extracted > PDF page-scored render
+  - Narrator = voice entry display name (from registry)
+- `tests/test_phase28.py` — 18 unit tests
+
+### Acceptance
+
+- 641 tests green ✅
+- `_write_ffmetadata` writes composer/date/language/publisher fields ✅
+- Empty fields silently omitted ✅
+- `extract_epub_cover` finds cover image from OPF properties ✅
+- `extract_epub_cover` returns `None` gracefully when no cover or corrupt EPUB ✅
+- CLI flags `--year`, `--language`, `--publisher`, `--cover` all parse correctly ✅
+- `compile_m4b` signature includes all new params ✅
+- **(human)** VLC tag verification: build a book with `--year 1865 --language en`
+  and confirm tags appear in VLC's file info — not a test, verify manually.
+
+---
 
 ## Phase 27 acceptance results
 

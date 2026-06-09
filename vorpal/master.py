@@ -162,6 +162,10 @@ def _write_ffmetadata(
     timestamps_ms: list,
     title: str,
     author: str,
+    narrator: str = "",
+    year: str = "",
+    language: str = "en",
+    publisher: str = "",
 ) -> None:
     """Write ffmpeg chapter metadata file."""
     # Total duration = last start + last chapter duration (no trailing silence)
@@ -172,6 +176,14 @@ def _write_ffmetadata(
             f.write(f"title={title}\n")
         if author:
             f.write(f"artist={author}\n")
+        if narrator:
+            f.write(f"composer={narrator}\n")  # composer = narrator in M4B convention
+        if year:
+            f.write(f"date={year}\n")
+        if language:
+            f.write(f"language={language}\n")
+        if publisher:
+            f.write(f"publisher={publisher}\n")
         f.write("genre=Audiobook\n\n")
         for i, (ch, start_ms) in enumerate(zip(chapter_results, timestamps_ms)):
             end_ms = (
@@ -196,22 +208,140 @@ def _write_concat_list(path: Path, m4a_paths: list) -> None:
 
 # ── cover art ─────────────────────────────────────────────────────────────
 
-def _render_cover(pdf_path: Optional[Path], work_dir: Path) -> Optional[Path]:
-    """Render page 1 of the PDF to a JPEG cover image. Returns None on failure."""
+def _score_cover_page(page, title: str) -> float:
+    """Heuristic score for a fitz page as a cover candidate.
+
+    Higher score = more likely to be the actual book cover.
+    Rewards image-heavy pages and title presence.
+    Penalises copyright/TOC pages (many short text fragments).
+    """
+    score = 0.0
+    page_rect = page.rect
+    page_area = max(page_rect.width * page_rect.height, 1)
+
+    image_area = 0.0
+    short_text_blocks = 0
+    page_text_pieces = []
+    for block in page.get_text("dict")["blocks"]:
+        btype = block.get("type", -1)
+        if btype == 1:  # image block
+            r = block.get("bbox", [0, 0, 0, 0])
+            w = r[2] - r[0]
+            h = r[3] - r[1]
+            image_area += w * h
+        elif btype == 0:  # text block
+            text = "".join(
+                span.get("text", "")
+                for line in block.get("lines", [])
+                for span in line.get("spans", [])
+            ).strip()
+            page_text_pieces.append(text)
+            if len(text) < 60:
+                short_text_blocks += 1
+
+    # Image coverage bonus (0–10 points)
+    score += (image_area / page_area) * 10
+
+    # Title presence bonus
+    page_text = " ".join(page_text_pieces).lower()
+    if title and title.lower() in page_text:
+        score += 5.0
+
+    # Many short fragments → probably copyright/TOC page → penalise
+    if short_text_blocks > 6:
+        score -= 2.0
+
+    return score
+
+
+def _render_cover(pdf_path: Optional[Path], work_dir: Path,
+                  title: str = "") -> Optional[Path]:
+    """Render the best-scored cover candidate from the first 5 PDF pages.
+
+    Scores pages 0–4 by image density and title-text proximity; picks the
+    highest-scoring candidate.  Falls back to page 0 if scoring fails.
+    Returns None on any error.
+    """
     if not pdf_path or not pdf_path.exists():
         return None
     try:
         import fitz
         doc = fitz.open(str(pdf_path))
-        page = doc[0]
+        n_candidates = min(5, len(doc))
+        best_page_idx = 0
+        best_score = -999.0
+        for i in range(n_candidates):
+            try:
+                s = _score_cover_page(doc[i], title)
+                if s > best_score:
+                    best_score = s
+                    best_page_idx = i
+            except Exception:
+                pass
+        page = doc[best_page_idx]
         mat = fitz.Matrix(72 / 72, 72 / 72)  # 72 dpi
         pix = page.get_pixmap(matrix=mat)
         cover_path = work_dir / "cover.jpg"
         pix.save(str(cover_path))
         doc.close()
+        if best_page_idx > 0:
+            print(f"  Cover: using page {best_page_idx + 1} "
+                  f"(score {best_score:.1f}, vs page 1 default)")
         return cover_path
     except Exception as e:
         print(f"  WARNING: cover art render failed ({e}), skipping cover")
+        return None
+
+
+def extract_epub_cover(epub_path: Path, work_dir: Path) -> Optional[Path]:
+    """Extract the cover image from an EPUB file.
+
+    Looks for an OPF manifest item with properties="cover-image" or
+    id containing "cover". Returns the path to the extracted JPEG/PNG,
+    or None if no cover is found.
+    """
+    import zipfile
+    try:
+        with zipfile.ZipFile(str(epub_path), "r") as zf:
+            # Find OPF
+            container = zf.read("META-INF/container.xml").decode("utf-8", errors="replace")
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(container)
+            opf_path = None
+            for rf in root.iter():
+                if rf.tag.rsplit("}", 1)[-1] == "rootfile":
+                    opf_path = rf.get("full-path")
+                    break
+            if not opf_path:
+                return None
+
+            opf_dir = opf_path[:opf_path.rfind("/") + 1] if "/" in opf_path else ""
+            opf_xml = zf.read(opf_path).decode("utf-8", errors="replace")
+            opf_root = ET.fromstring(opf_xml)
+
+            # Find cover image in manifest
+            cover_href = None
+            for item in opf_root.iter():
+                local = item.tag.rsplit("}", 1)[-1] if "}" in item.tag else item.tag
+                if local == "item":
+                    props = item.get("properties", "")
+                    item_id = item.get("id", "").lower()
+                    media_type = item.get("media-type", "")
+                    if ("cover-image" in props or "cover" in item_id) \
+                            and "image" in media_type:
+                        cover_href = opf_dir + item.get("href", "")
+                        break
+
+            if not cover_href or cover_href not in zf.namelist():
+                return None
+
+            img_bytes = zf.read(cover_href)
+            ext = Path(cover_href).suffix or ".jpg"
+            cover_path = work_dir / f"cover{ext}"
+            cover_path.write_bytes(img_bytes)
+            return cover_path
+    except Exception as e:
+        print(f"  WARNING: EPUB cover extraction failed ({e}), skipping cover")
         return None
 
 
@@ -476,12 +606,17 @@ def compile_m4b(
     output_stem: str,
     title: str = "",
     author: str = "",
+    narrator: str = "",
+    year: str = "",
+    language: str = "en",
+    publisher: str = "",
     target_lufs: float = -18.0,
     target_lra: float = 11.0,
     target_tp: float = -1.5,
     inter_chapter_silence_ms: int = 1500,
     aac_bitrate: str = "64k",
     pdf_path: Optional[Path] = None,
+    cover_path: Optional[Path] = None,   # explicit override; supersedes pdf_path render
     work_dir: Optional[Path] = None,
     synth_report=None,
     manifest_qa: Optional[dict] = None,
@@ -562,7 +697,9 @@ def compile_m4b(
         chapter_results, inter_chapter_silence_ms,
     )
     meta_path = work_dir / f"{Path(output_stem).name}_chapters.ffmeta"
-    _write_ffmetadata(meta_path, chapter_results, timestamps_ms, title, author)
+    _write_ffmetadata(meta_path, chapter_results, timestamps_ms, title, author,
+                      narrator=narrator, year=year,
+                      language=language, publisher=publisher)
 
     # ── Concat list (chapters interleaved with silence) ───────────────────
     concat_items = []
@@ -574,7 +711,9 @@ def compile_m4b(
     _write_concat_list(concat_path, concat_items)
 
     # ── Cover art ─────────────────────────────────────────────────────────
-    cover_path = _render_cover(pdf_path, work_dir)
+    # cover_path param takes precedence (CLI --cover override or EPUB-extracted cover)
+    if not cover_path:
+        cover_path = _render_cover(pdf_path, work_dir, title=title)
 
     # ── Assemble M4B via concat demuxer ──────────────────────────────────
     print("  Assembling M4B...")

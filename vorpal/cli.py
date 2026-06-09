@@ -50,6 +50,15 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("input", help="Input file: PDF, EPUB, or plain-text (.txt)")
     build.add_argument("--title",   default="",  help="Audiobook title metadata")
     build.add_argument("--author",  default="",  help="Author metadata")
+    build.add_argument("--year",    default="",  help="Publication year embedded in M4B tags")
+    build.add_argument("--language", default="en",
+                       help="Language code embedded in M4B tags (default: en)")
+    build.add_argument("--publisher", default="",
+                       help="Publisher name embedded in M4B tags")
+    build.add_argument("--cover",   default=None, metavar="IMAGE",
+                       help="Override cover art: path to a JPEG or PNG image. "
+                            "By default, vorpal selects the best page from the PDF "
+                            "(pages 1–5) or the EPUB cover image.")
     build.add_argument("--voice",   default="af_heart",
                        help="Voice id from registry, e.g. af_heart, blend_warm_bright "
                             "(run `vorpal voices` to list all)")
@@ -268,6 +277,7 @@ def cmd_build(args) -> None:
             work_dir,
         )
         pdf_path_for_cover = input_path
+        epub_cover_path = None
     else:
         sections, seg_pages = _build_format_parse(
             args, input_path, fmt, manifest, work_dir,
@@ -276,6 +286,11 @@ def cmd_build(args) -> None:
         title  = args.title or manifest.source.get("title") or input_path.stem
         author = args.author or manifest.source.get("author") or ""
         pdf_path_for_cover = None
+        # Try to extract cover image from EPUB manifest
+        epub_cover_path = None
+        if fmt == "epub":
+            from .master import extract_epub_cover
+            epub_cover_path = extract_epub_cover(input_path, work_dir)
 
     if args.stop_after == "segment":
         body_dir = work_dir / "chapter_texts"
@@ -542,17 +557,26 @@ def cmd_build(args) -> None:
         silence_ms  = int(settings.get("inter_chapter_silence_ms", 1500))
         aac_bitrate = str(settings.get("aac_bitrate", "64k"))
 
+        # Resolve cover: CLI --cover > EPUB-extracted > PDF-rendered (inside compile_m4b)
+        cli_cover = getattr(args, "cover", None)
+        explicit_cover = Path(cli_cover) if cli_cover else epub_cover_path
+
         try:
             final = compile_m4b(
                 chapter_results, output_stem,
                 title=title,
                 author=author,
+                narrator=voice_entry.display_name,
+                year=getattr(args, "year", ""),
+                language=getattr(args, "language", "en"),
+                publisher=getattr(args, "publisher", ""),
                 target_lufs=target_lufs,
                 target_lra=target_lra,
                 target_tp=target_tp,
                 inter_chapter_silence_ms=silence_ms,
                 aac_bitrate=aac_bitrate,
                 pdf_path=pdf_path_for_cover,
+                cover_path=explicit_cover,
                 work_dir=work_dir,
                 synth_report=synth_report,
                 manifest_qa=manifest.qa,
