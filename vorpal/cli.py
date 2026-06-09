@@ -209,6 +209,21 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--no-browser", action="store_true", dest="no_browser",
                        help="Don't open a browser window automatically")
 
+    fetch_play_cmd = sub.add_parser(
+        "fetch-play",
+        help="Download a Project Gutenberg play by title or ID (Arc 7)",
+    )
+    fetch_play_cmd.add_argument(
+        "title_or_id",
+        help="Play title slug (e.g. 'hamlet') or Gutenberg book ID",
+    )
+    fetch_play_cmd.add_argument(
+        "--corpus-dir",
+        default="corpus/plays",
+        dest="corpus_dir",
+        help="Directory to save the stripped play text (default: corpus/plays)",
+    )
+
     return parser
 
 
@@ -1216,6 +1231,19 @@ def main(argv=None) -> None:
         cmd_voices(args)
     elif args.command == "serve":
         cmd_serve(args)
+    elif args.command == "fetch-play":
+        cmd_fetch_play(args)
+
+
+def cmd_fetch_play(args) -> None:
+    from .play.fetcher import fetch_play
+    corpus_dir = Path(args.corpus_dir)
+    print(f"Downloading play: {args.title_or_id!r} → {corpus_dir}/")
+    dest = fetch_play(args.title_or_id, corpus_dir=corpus_dir)
+    print(f"Saved: {dest}")
+    # Quick sanity: count non-empty lines
+    lines = [l for l in dest.read_text(encoding="utf-8").splitlines() if l.strip()]
+    print(f"Stripped text: {len(lines)} non-empty lines")
 
 
 def cmd_serve(args) -> None:

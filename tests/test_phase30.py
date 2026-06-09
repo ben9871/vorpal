@@ -58,7 +58,7 @@ def _book_json(work_dir: Path, n_chapters: int = 3,
     return data
 
 
-def _client(tmp_path: Path) -> TestClient:
+def _client(tmp_path: Path):
     app = create_app(tmp_path / "book.pdf", tmp_path)
     return TestClient(app, raise_server_exceptions=True)
 
