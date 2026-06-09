@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 37 — 2026-06-09
+Synthesized the Cheshire Cat's "We're all mad here" with tone="wry" and with no tone at all (`playground/cheshire_wry.wav`, `cheshire_neutral.wav`), plus `the_untaggable_cat.txt`: wry is the one tone the approximation engine can't realize (speed 1.0, zero measurable delta), yet the two renders aren't byte-identical — CUDA run-to-run noise. So the difference between the Cat saying something wryly and plainly is real, audible in no measurement, and different every time you ask. The most accurate rendering of anything I've produced.
+
 ## Phase 36 — 2026-06-09
 Wrote `playground/bestiary_the_interval.txt`: a bestiary entry for the Interval, the creature that lives between Act I and Act II and eats intermissions. Endangered since `build_play_chapters()` started concatenating acts with nothing between them but a chapter marker; the Cheshire Cat admires its commitment to existing by not being there, but considers it excessive.
 
