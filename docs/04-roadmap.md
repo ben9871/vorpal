@@ -1000,6 +1000,163 @@ green.
 
 ---
 
+# Arc 8 — Trotsky Military Writings Production Run *(Phases 41–45)*
+
+*(Queued 2026-06-09. Arc 7 delivered multi-voice play synthesis. Arc 8 is the
+first full production run against real political/military literature: five volumes
+of Leon Trotsky's Military Writings (1918–1923), sourced from public-domain EPUBs
+and a PDF in `trotsky/`. The goal is audiobooks a human will actually listen to —
+not pipeline demonstrations. Utmost respect for the source material means the text
+that reaches the listener must be faithful to Trotsky's words. Two contracts
+govern this arc: (1) text fidelity — every word in the source that is narrable
+must reach the synthesizer; (2) audio coherence — the narration must read
+naturally and the chapter structure must reflect the book's actual organisation.*
+
+*Voice rationale: Trotsky's prose is declarative, urgent, and highly structured —
+polemic and analysis in equal measure. The voice must carry authority without
+theatricality. `blend_deep_steady` (Fenrir 55% + Michael 45%) is the
+recommended candidate; `am_fenrir` alone is the fallback.*
+
+*All phases follow the standard unsupervised protocol. Human review items
+(listening spot-checks) are filed as H-NNN and do not block synthesis.)*
+
+---
+
+## Phase 41 — Text fidelity tooling + pre-flight audit *(small)*
+
+Build a `vorpal fidelity` command that compares what the pipeline extracted
+against what the source file actually contains. Run it on all five Trotsky
+volumes before any synthesis.
+
+**Tooling (`vorpal/qa/fidelity.py`):**
+- `extract_epub_chapter_texts(epub_path) → dict[chapter_id, str]` — strip XHTML
+  tags, decode entities, return one string per OPF spine item
+- `extract_workdir_chapter_texts(workdir) → dict[filename, str]` — reads
+  `chapter_texts/*.txt` written during the segment stage
+- `compare_chapters(source_texts, workdir_texts) → FidelityReport`:
+  - Per-chapter similarity score (difflib sequence ratio, 0–1)
+  - Dropped paragraph detection: paragraphs in source absent from workdir text
+  - Order anomaly detection: chapters out-of-spine sequence
+  - Overall: passed (all chapters ≥ 0.90), degraded (any chapter 0.70–0.90),
+    failed (any chapter < 0.70)
+- `format_fidelity_report(report) → str` — Markdown table with per-chapter
+  scores, dropped paragraph counts, anomaly flags
+- `vorpal fidelity <epub_or_pdf> <workdir>` CLI subcommand
+
+**Pre-flight audit:**
+- Run `vorpal build <vol> --stop-after segment` for all five volumes
+- Run `vorpal fidelity` on each workdir
+- Record results in `docs/06-corpus.md` §"Trotsky pre-flight"
+- Any chapter scoring < 0.90 is a blocker for that volume until root cause is found
+
+**Accept when:** `vorpal fidelity` command exists and unit tests cover similarity
+scoring, dropped-paragraph detection, order anomalies, and edge cases (empty
+workdir, mismatched chapter counts). Pre-flight audit results recorded.
+
+---
+
+## Phase 42 — Voice selection: Trotsky audition
+
+Produce audition clips for the top voice candidates using passages drawn from
+Volume 1 that exercise the range of Trotsky's prose: a polemical opening, a
+dense analytical passage, a direct address to soldiers, and a closing peroration.
+
+- Select four representative passages (~150 words each) from `trotsky/military-writings-trotsky-v1.epub`
+- Synthesize each with: `blend_deep_steady`, `am_fenrir`, `bm_george`
+- Output audition clips to `trotsky/audition/<voice>_<passage>.wav`
+- File **H-013**: listen to audition clips and confirm or override voice choice;
+  default to `blend_deep_steady` if H-013 is not yet resolved
+- Proceed with `blend_deep_steady` immediately; H-013 outcome may trigger a
+  re-synthesize if a different voice is chosen (TTS cache makes re-render cheap)
+
+**Accept when:** audition clips produced and non-empty; H-013 filed;
+`docs/06-corpus.md` records the audition candidates and the assumed selection.
+
+---
+
+## Phase 43 — Volume 1 production build (1918)
+
+Full production build of `trotsky/military-writings-trotsky-v1.epub`.
+
+**Build command:**
+```
+vorpal build trotsky/military-writings-trotsky-v1.epub \
+  --voice blend_deep_steady \
+  --year 1918 \
+  --author "Leon Trotsky" \
+  --publisher "New Park Publications" \
+  --language en \
+  --profile headphones \
+  --output trotsky_v1
+```
+
+**QA steps after build:**
+1. Run `vorpal fidelity trotsky/military-writings-trotsky-v1.epub trotsky_v1_workdir` —
+   all chapters must score ≥ 0.90
+2. Run `vorpal review trotsky/military-writings-trotsky-v1.epub` — verify chapter
+   count matches the EPUB's spine; check no chapters have empty body text
+3. Spot-check chapter titles: confirm they match Trotsky's actual section headings,
+   not OCR artifacts or EPUB navigation labels
+4. File **H-014**: listening spot-check — first chapter + one randomly selected
+   mid-book chapter; human checks for dropped text, unnaturally rendered passages,
+   and chapter-boundary clicks
+
+**Accept when:** build completes, fidelity check passes (all ≥ 0.90), review gate
+shows correct chapter count, H-014 filed, results in `docs/06-corpus.md`.
+
+---
+
+## Phase 44 — Volumes 2 and 3 production builds (1919, 1920)
+
+Build `military-writings-trotsky-v2.epub` (Volume 2, 1919) and
+`military-writings-trotsky-v3.epub` (Volume 3, 1920) with the same
+voice/profile/metadata settings as Volume 1 (year adjusted per volume).
+
+For each volume:
+- Full build with `--year <year>` adjusted
+- `vorpal fidelity` — all chapters ≥ 0.90
+- `vorpal review` — correct chapter count, no empty bodies
+- File **H-015** (v2) and **H-016** (v3): listening spot-checks
+
+If a volume's fidelity check fails any chapter (score < 0.90), investigate root
+cause before proceeding: compare the EPUB's raw chapter text to what the pipeline
+produced and identify the extraction or segmentation step that degraded fidelity.
+Fix if it is a general bug; record as a corpus anomaly if it is volume-specific.
+
+**Accept when:** both builds complete, both fidelity checks pass, H-015 and H-016
+filed, results in `docs/06-corpus.md`.
+
+---
+
+## Phase 45 — Volumes 4 and 5 production builds (1921–1923, PDF)
+
+**Volume 4** (`military-writings-trotsky-v4.epub`, 1921–1923): EPUB, same
+pipeline as Volumes 1–3. Build with `--year 1921`.
+
+**Volume 5** (`Military-Writings-Trotsky-v5.pdf`): This is a PDF — likely a
+scan or born-digital document. Approach:
+
+1. Run `vorpal build --stop-after extract --end-page 30` and inspect `pages.jsonl`:
+   - If `scan_type` is `digital`: born-digital, proceed directly to full build
+   - If `scan_type` is `scanned`: check mean OCR confidence; if < 0.85, investigate
+     before committing to a full build (potentially hundreds of synthesis hours lost
+     to bad OCR)
+2. If OCR quality is acceptable (mean confidence ≥ 0.85, flagged pages ≤ 10%),
+   proceed to full build
+3. Run `vorpal fidelity` using the PDF path (text-layer extraction vs workdir text)
+4. If OCR quality is not acceptable: record findings in `docs/06-corpus.md`, file
+   **H-019** (human OCR verdict), and stop — do not attempt full synthesis
+
+For both volumes, file **H-017** (v4) and **H-018** (v5 if built): listening
+spot-checks.
+
+**Accept when:** Volume 4 builds and passes fidelity; Volume 5 is either
+built and passes fidelity, or is honestly documented as blocked with OCR
+evidence. H-017 filed; H-018 filed or noted as blocked. All five volume results
+in `docs/06-corpus.md`.
+
+---
+
 ## What has graduated out of "far future"
 
 *(Updated 2026-06-09 — items that were "thought about, not planned" have
@@ -1021,6 +1178,7 @@ earned their place in the arcs above.)*
 - **Chapter summaries** → Arc 6 (Phase 29).
 - **TUI / local web UI** → Arc 6 (Phase 30).
 - **Multi-voice dramatization / theatrical mode** → Arc 7 (Phases 31–40).
+- **Trotsky Military Writings production run + text fidelity QA tooling** → Arc 8 (Phases 41–45).
 
 **Still explicitly out of scope:** voice cloning; DOCX/web input; GUI as a
 *replacement* for the CLI (Phase 30 is additive); DRM circumvention.

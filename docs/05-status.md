@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 40 done — **Arc 7 complete**).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 40 done — **Arc 7 complete**; Arc 8 Trotsky production run queued).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -55,6 +55,11 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit `d761a71` |
 | Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit `51d22f6` |
 | Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
+| Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ⬅ next | — |
+| Arc 8: Phase 42 — voice selection: Trotsky audition | queued | — |
+| Arc 8: Phase 43 — Volume 1 production build (1918) | queued | — |
+| Arc 8: Phase 44 — Volumes 2-3 production builds (1919, 1920) | queued | — |
+| Arc 8: Phase 45 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
 
 **Arc 7 (theatrical mode, Phases 31–40) complete.** vorpal now builds
 multi-voice play audiobooks: `vorpal fetch-play` / `cast` / `cast-audition` /
@@ -63,6 +68,14 @@ synthesis → m4b. Six-play Gutenberg corpus parses clean (see
 `docs/06-corpus.md` play section). Outstanding human items: H-012 (cast
 audition listen) gates the first full-Hamlet synthesis. Phases 21 and 22
 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
+
+**Arc 8 (Trotsky production run, Phases 41–45) queued.** Five volumes of
+Leon Trotsky's Military Writings (1918–1923) are in `trotsky/` as EPUBs (v1–v4)
+and a PDF (v5). The arc builds the fidelity QA tooling first, then produces one
+.m4b per volume at maximum quality with voice `blend_deep_steady`. Human
+listening spot-checks are H-013 (voice audition verdict) through H-018 (per-volume
+listen). See `docs/04-roadmap.md` Arc 8 for full acceptance criteria and voice rationale.
+
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
 
 ## Phase 40 acceptance results
@@ -1441,7 +1454,7 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 698 passed
+python -m pytest -q                  # should be 894 passed
 
 # Verify Phase 30 (web UI):
 pip install -e '.[web]'
@@ -1461,20 +1474,43 @@ vorpal build tests/fixtures/outline.pdf --draft --end-page 3
 
 ## What to build next
 
-**All Arcs 1–6 are complete** (Phases 0–30 done or honestly blocked).
+**Arc 8 (Phases 41–45) is the active work.** Read `docs/04-roadmap.md` Arc 8
+for full acceptance criteria before starting.
 
-Phase 21 and 22 remain blocked on `VORPAL_OPENAI_KEY`. Phase 26 pending
-Piper live test (H-011). Phase 30 pending browser usability spot-check (H-010).
+**Phase 41 (text fidelity tooling) is first.** Key steps:
+1. Write `vorpal/qa/fidelity.py` — `extract_epub_chapter_texts()`,
+   `compare_chapters()`, `FidelityReport`, `format_fidelity_report()`
+2. Wire `vorpal fidelity <epub> <workdir>` CLI subcommand
+3. Unit tests: similarity scoring, dropped-paragraph detection, order anomalies
+4. Run `vorpal build --stop-after segment` on all five Trotsky volumes
+5. Run `vorpal fidelity` on each workdir; record results in `docs/06-corpus.md`
 
-The next session should either:
-1. **Resolve H-010/H-011**: add credentials and run live acceptance, then close
-   the items in `docs/09-human-review-queue.md`.
-2. **Propose new phases**: work through the product vision in
-   `docs/02-product-vision.md` for any remaining gaps, write them to
-   `docs/04-roadmap.md` with acceptance criteria, and build.
-3. **Wonderland project**: if all pipeline work is genuinely exhausted, start a
-   standalone Alice in Wonderland themed project in `playground/` per
-   CLAUDE.md §"Wonderland projects".
+**Trotsky source files:**
+```
+trotsky/military-writings-trotsky-v1.epub   # Volume 1 (1918) — 558 KB
+trotsky/military-writings-trotsky-v2.epub   # Volume 2 (1919) — 796 KB
+trotsky/military-writings-trotsky-v3.epub   # Volume 3 (1920) — 1.2 MB
+trotsky/military-writings-trotsky-v4.epub   # Volume 4 (1921-1923) — 931 KB
+trotsky/Military-Writings-Trotsky-v5.pdf    # Volume 5 (later) — 1.7 MB
+```
+
+**Voice for all volumes:** `blend_deep_steady` (Fenrir 55% + Michael 45%).
+Rationale: Trotsky's prose is authoritative and declarative — needs depth
+without theatricality. Fallback: `am_fenrir`. Phase 42 produces audition
+clips; H-013 is the human verdict. Proceed with blend_deep_steady while
+H-013 is pending.
+
+**Build metadata per volume:**
+```
+--author "Leon Trotsky" --publisher "New Park Publications" --language en
+--profile headphones --voice blend_deep_steady
+v1: --year 1918    v2: --year 1919    v3: --year 1920
+v4: --year 1921    v5: --year 1924 (approximate)
+```
+
+Arcs 1–7 are complete. Phase 21 and 22 remain blocked on `VORPAL_OPENAI_KEY`
+(H-002). Phase 26 pending Piper live test (H-011). Phase 30 pending browser
+usability spot-check (H-010).
 
 ### Tone-backend credential status & the manual-seeding approach
 
@@ -1520,19 +1556,16 @@ asynchronously. Summary of open items:
 
 ### Roadmap horizon
 
-- **Arc 4 (Phases 15–20):** parallel OCR, batched TTS, LLM OCR repair (manual
-  seeded), library mode, manifest export, corpus hardening.
-- **Arc 5 (Phases 21–25):** OpenAI TTS live, tone on real engine, StyleTTS2
-  spike, dialogue-aware delivery, footnote narration.
-- **Arc 6 (Phases 26–30):** Piper draft engine, loudness profiles, richer
-  metadata/cover, chapter summaries, TUI/web UI.
-- **Beyond Phase 30:** the agent proposes and builds new phases autonomously,
-  staying within the product vision. When all pipeline work is genuinely
-  exhausted it may start a standalone Wonderland project in `playground/`.
-  See CLAUDE.md §"Wonderland projects".
+- **Arcs 1–7 (Phases 0–40):** complete.
+- **Arc 8 (Phases 41–45):** Trotsky Military Writings production run —
+  fidelity tooling, voice audition, five-volume build with QA. **Active.**
+- **Beyond Phase 45:** agent proposes new phases autonomously, staying within
+  the product vision in `docs/02-product-vision.md`. When all pipeline and
+  production work is genuinely exhausted it may start a standalone Wonderland
+  project in `playground/`. See CLAUDE.md §"Wonderland projects".
 
 ### Full-day autonomous launch command
 
 ```powershell
-.\docker\run.ps1 -Gpu -Prompt "Read CLAUDE.md, docs/05-status.md, docs/09-human-review-queue.md, and docs/04-roadmap.md. Work through all remaining phases in roadmap order starting from wherever the status doc says we are. Follow the unsupervised-run protocol exactly. When you finish all planned phases, propose new ones — add them to docs/04-roadmap.md with full acceptance criteria, then build them immediately. Stay within the product vision in docs/02-product-vision.md. If you genuinely exhaust all pipeline work, start a standalone Wonderland project in playground/ per the instructions in CLAUDE.md. Never stop voluntarily unless the machine is at risk. No pushing code."
+.\docker\run.ps1 -Gpu -Model "claude-fable-5" -Prompt "Read CLAUDE.md, docs/05-status.md, docs/09-human-review-queue.md, and docs/04-roadmap.md. Arc 8 (Trotsky Military Writings production run) is the active work — start at Phase 41 and work through Phase 45 in order. Follow the unsupervised-run protocol exactly: one commit per phase, docs/05-status.md updated after each, H-NNN items filed for human listening checks (never block on them). After Phase 45, if all pipeline work is genuinely exhausted, propose new phases or start a standalone Wonderland project in playground/ per the instructions in CLAUDE.md. Never stop voluntarily unless the machine is at risk. No pushing code."
 ```
