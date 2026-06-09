@@ -10,6 +10,9 @@ There is no wrong entry.
 
 ---
 
+## Phase 41 — 2026-06-09
+Wrote `playground/the_fidelity_of_the_knights_song.py`: the White Knight's four-level song-naming hierarchy ("the name of the song is called…") run through Phase 41's fidelity report. Every adjacent level is a faithful description of the next, and end-to-end similarity is 0.000 — which is the whole argument for checking the workdir against the source instead of against the stage before it. The report has no column for the Knight falling off the horse.
+
 <!-- Entries added by the agent after each phase commit, newest last. Format:
 
 ## Phase N — YYYY-MM-DD
