@@ -83,6 +83,7 @@ class APIEngine(TTSEngine):
     max_chunk_chars = 4096  # OpenAI TTS supports longer inputs
     supported_tones = ("somber", "tense", "warm", "wry", "neutral")
     cost_per_1k_chars: float = 15.0 / 1000  # $15 per 1M chars = $0.015 per 1k
+    dialogue_style: Optional[str] = None
 
     # When tone hints are active, use the instruction-capable model
     _TONAL_MODEL = "gpt-4o-mini-tts"
@@ -122,17 +123,32 @@ class APIEngine(TTSEngine):
     def voice_cache_key(self) -> str:
         return f"openai_{self.voice}"
 
-    def synthesize(self, text: str, tone: Optional[str] = None):
+    _DIALOGUE_INSTRUCTION = (
+        "This is quoted speech — a character speaking directly. "
+        "Deliver it with slightly more presence and natural conversational flow, "
+        "as if the narrator is voicing the character directly."
+    )
+
+    def synthesize(self, text: str, tone: Optional[str] = None,
+                   is_dialogue: bool = False):
         key = _resolve_openai_key()
         if not key:
             raise RuntimeError(
                 "OpenAI TTS requires VORPAL_OPENAI_KEY — see CLAUDE.md §Credentials"
             )
 
-        instruction = self._TONE_INSTRUCTIONS.get(tone or "neutral",
-                                                   self._TONE_INSTRUCTIONS["neutral"])
+        tone_instruction = self._TONE_INSTRUCTIONS.get(tone or "neutral",
+                                                        self._TONE_INSTRUCTIONS["neutral"])
         has_tone = tone and tone != "neutral"
-        model = self._model_override or (self._TONAL_MODEL if has_tone else self._BASE_MODEL)
+        has_dlg = is_dialogue and bool(self.dialogue_style)
+        model = self._model_override or (self._TONAL_MODEL if (has_tone or has_dlg) else self._BASE_MODEL)
+
+        instruction_parts = []
+        if has_tone or model == self._TONAL_MODEL:
+            instruction_parts.append(tone_instruction)
+        if has_dlg:
+            instruction_parts.append(self._DIALOGUE_INSTRUCTION)
+        instruction = " ".join(instruction_parts) if instruction_parts else tone_instruction
 
         payload: dict = {
             "model": model,
@@ -141,7 +157,7 @@ class APIEngine(TTSEngine):
             "response_format": "wav",
             "speed": max(0.25, min(4.0, self.speed)),
         }
-        if has_tone or model == self._TONAL_MODEL:
+        if has_tone or has_dlg or model == self._TONAL_MODEL:
             payload["instructions"] = instruction
 
         try:

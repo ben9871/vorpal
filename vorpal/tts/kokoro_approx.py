@@ -27,6 +27,10 @@ TONE_SPEED: dict = {
     "reflective": 0.90,  # unhurried
 }
 
+# Dialogue speed shift — conservative, barely perceptible; only active when
+# dialogue_style="subtle" is configured on the engine.
+DIALOGUE_SPEED: float = 0.97
+
 # Per-tone pause-length multipliers (applied to pause_after_ms)
 TONE_PAUSE_SCALE: dict = {
     "neutral":    1.00,
@@ -56,8 +60,10 @@ class KokoroApproxEngine(TTSEngine):
 
     def __init__(self, voice: str = "af_heart", speed: float = 1.0,
                  params: Optional[dict] = None,
-                 inner_engine: Optional[TTSEngine] = None):
+                 inner_engine: Optional[TTSEngine] = None,
+                 dialogue_style: Optional[str] = None):
         self._base_speed = float(speed)
+        self.dialogue_style = dialogue_style
         if inner_engine is not None:
             self._inner = inner_engine
         else:
@@ -87,20 +93,17 @@ class KokoroApproxEngine(TTSEngine):
         scale = TONE_PAUSE_SCALE.get(tone or "neutral", 1.0)
         return max(0, int(pause_ms * scale))
 
-    def synthesize(self, text: str, tone: Optional[str] = None):
-        """Synthesize with tone-adjusted speed."""
+    def synthesize(self, text: str, tone: Optional[str] = None,
+                   is_dialogue: bool = False):
+        """Synthesize with tone-adjusted speed and optional dialogue shift."""
         tone_speed = TONE_SPEED.get(tone or "neutral", 1.0)
-        actual_speed = self._base_speed * tone_speed
+        dlg_shift = DIALOGUE_SPEED if (is_dialogue and self.dialogue_style == "subtle") else 1.0
+        actual_speed = self._base_speed * tone_speed * dlg_shift
 
-        # Delegate to the inner engine after temporarily adjusting speed.
-        # We use pipeline internals when inner is KokoroEngine; otherwise
-        # we just adjust the speed attribute and call synthesize.
         inner = self._inner
         old_speed = getattr(inner, "speed", actual_speed)
         try:
             inner.speed = actual_speed
-            # Pass tone=None: the inner engine doesn't support tone natively;
-            # the approximation IS the tone realization.
             return inner.synthesize(text, tone=None)
         finally:
             inner.speed = old_speed

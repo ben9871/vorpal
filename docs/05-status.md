@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-08 (Arc 4 complete — Phase 20 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 24 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -38,13 +38,56 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 5: Phase 21 — OpenAI TTS live acceptance | 🚫 blocked | `VORPAL_OPENAI_KEY` not provisioned — see H-002 |
 | Arc 5: Phase 22 — tone with instruction engine | 🚫 blocked | depends on Phase 21 |
 | Arc 5: Phase 23 — StyleTTS2 voice design spike | ✅ done (pending human verdict) | commit Phase 23 — see H-009 |
-| **Arc 5: Phase 24** (dialogue-aware delivery) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 5: Phase 24 — dialogue-aware delivery | ✅ done | commit Phase 24 |
+| **Arc 5: Phase 25** (footnote narration mode) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 4 complete.** Phases 15–20 done.
 **Arc 5 in progress.** Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` (H-002);
 Phase 23 done (human verdict on StyleTTS2 samples pending — H-009);
-Phase 24 (dialogue-aware delivery) next.
+Phase 24 done; Phase 25 (footnote narration mode) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 24 acceptance results
+
+**556 tests green** (556 = 527 Phase-23 + 29 new in `tests/test_phase24.py`).
+
+### What was built
+
+Dialogue-aware delivery: the pipeline can now classify chunks as dialogue
+(majority text is inside closed double-quote spans) and apply a subtle
+acoustic shift when an engine is configured for it.
+
+- `vorpal/segment/dialogue.py` — `detect_dialogue_fraction()` and
+  `is_dialogue_chunk()`: count non-whitespace characters inside closed
+  ASCII and curly double-quote spans; fraction ≥ 0.5 → dialogue.
+- `vorpal/normalize.py` — `Chunk.is_dialogue` field (default `False`);
+  `normalize_chapter` sets it for every emitted chunk.
+- `vorpal/synth.py` — `_cache_key` appends `_dlg` suffix only when
+  `engine.dialogue_style` is set AND `chunk.is_dialogue=True`; ensures
+  byte-identical output for default engines.
+- `vorpal/tts/base.py` — `dialogue_style: Optional[str] = None` class attr;
+  `synthesize()` updated with `is_dialogue: bool = False`.
+- `vorpal/tts/kokoro_approx.py` — `DIALOGUE_SPEED = 0.97`; stores
+  `self.dialogue_style`; applies 3% speed reduction for dialogue chunks
+  when `dialogue_style="subtle"`.
+- `vorpal/tts/api_engine.py` — `dialogue_style` class attr; `synthesize()`
+  updated; dialogue instruction string appended when `has_dlg=True`.
+- `vorpal/tts/voices.py` — `VoiceEntry.dialogue_style` field (default `None`).
+- `vorpal/tts/mock_engine.py`, `vorpal/tts/kokoro_engine.py` — `is_dialogue`
+  param added to `synthesize()` signature.
+- `tests/test_phase24.py` — 29 unit tests.
+
+### Acceptance
+
+- 556 tests green ✅
+- Default engine (no `dialogue_style`) produces byte-identical audio ✅
+- `KokoroApproxEngine(dialogue_style="subtle")` applies 3% speed shift
+  exactly for dialogue chunks (verified via MockEngine) ✅
+- Cache keys differ for `is_dialogue=True` vs `False` only when engine
+  has `dialogue_style` set ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 23 acceptance results
 

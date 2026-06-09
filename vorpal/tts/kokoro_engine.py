@@ -84,7 +84,8 @@ class KokoroEngine(TTSEngine):
             self._blend_tensor = blend
         return self._blend_tensor
 
-    def synthesize(self, text: str, tone: Optional[str] = None):
+    def synthesize(self, text: str, tone: Optional[str] = None,
+                   is_dialogue: bool = False):
         import numpy as np
         import torch
 

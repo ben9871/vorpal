@@ -29,6 +29,7 @@ class VoiceEntry:
     engine: str                 # "kokoro"
     params: dict                # {"voice": "af_heart"} or {"blend": {...}, "speed": N}
     description: str            # one-line character description
+    dialogue_style: Optional[str] = None  # None = no dialogue shift; "subtle" = 3% slower
 
 
 def _params_cache_key(params: dict) -> str:

@@ -19,9 +19,13 @@ class TTSEngine(ABC):
     # Set True in subclasses that implement synthesize_batch().
     # When True, synth.py uses the batch path for uncached chunks.
     supports_batch: bool = False
+    # Dialogue shift style: None = no shift (default, byte-identical to pre-Phase-24).
+    # Set to "subtle" to apply a conservative delivery adjustment for quoted speech.
+    dialogue_style: Optional[str] = None
 
     @abstractmethod
-    def synthesize(self, text: str, tone: Optional[str] = None):
+    def synthesize(self, text: str, tone: Optional[str] = None,
+                   is_dialogue: bool = False):
         """Synthesize one chunk of text.
 
         Returns a 1-D float numpy array of samples at self.sample_rate,
@@ -30,6 +34,8 @@ class TTSEngine(ABC):
 
         tone: hint from the chunk schema (None = neutral). Engines that do not
         support expressive narration ignore this parameter.
+        is_dialogue: True when the chunk is majority quoted speech. Engines with
+        dialogue_style set apply a subtle delivery adjustment; others ignore it.
         """
         raise NotImplementedError
 

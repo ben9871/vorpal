@@ -65,14 +65,18 @@ def safe_filename(s: str) -> str:
 def _cache_key(chunk: Chunk, engine: TTSEngine) -> str:
     """Stable filename for a cached chunk WAV.
 
-    Keyed on (text_hash, engine, voice_key, speed, tone).  voice_key uses
-    engine.voice_cache_key when available so blend-recipe edits invalidate
-    exactly the affected audio without touching other voices' caches.
+    Keyed on (text_hash, engine, voice_key, speed, tone, dialogue_suffix).
+    voice_key uses engine.voice_cache_key when available so blend-recipe edits
+    invalidate exactly the affected audio without touching other voices' caches.
+    dialogue_suffix is "_dlg" only when the engine applies a dialogue shift AND
+    the chunk is dialogue — so engines without dialogue_style get unchanged keys.
     """
     tone_part = chunk.tone or "none"
     voice_key = getattr(engine, "voice_cache_key", None) or getattr(engine, "voice", "default")
     speed = getattr(engine, "speed", 1.0)
-    raw = f"{chunk.text_hash}_{engine.name}_{voice_key}_{speed}_{tone_part}"
+    has_dlg_shift = bool(getattr(engine, "dialogue_style", None))
+    dlg_part = "_dlg" if (chunk.is_dialogue and has_dlg_shift) else ""
+    raw = f"{chunk.text_hash}_{engine.name}_{voice_key}_{speed}_{tone_part}{dlg_part}"
     # Sanitize for use as a filename
     raw = re.sub(r"[^\w\-]", "_", raw)
     return raw + ".wav"
@@ -96,7 +100,8 @@ def _gap_marker(sample_rate: int, duration_ms: int = 1000):
 # ── per-chunk synthesis with retry / split ────────────────────────────────
 
 def _synth_with_retry(text: str, tone: Optional[str], engine: TTSEngine,
-                      chapter_title: str, chunk_idx: int) -> tuple:
+                      chapter_title: str, chunk_idx: int,
+                      is_dialogue: bool = False) -> tuple:
     """Attempt synthesis with retry → split-half → abort.
 
     Returns (audio_array, retried: bool).
@@ -105,7 +110,7 @@ def _synth_with_retry(text: str, tone: Optional[str], engine: TTSEngine,
     import numpy as np
 
     def _attempt(t: str):
-        return engine.synthesize(t, tone=tone)
+        return engine.synthesize(t, tone=tone, is_dialogue=is_dialogue)
 
     # Attempt 1
     try:
@@ -244,7 +249,8 @@ def tts_all_chapters(
         # Re-index so intro + body form a single sequence
         all_chunks: list[Chunk] = []
         for i, c in enumerate(intro_chunks + body_chunks):
-            all_chunks.append(Chunk(i, c.text, c.pause_after_ms, c.tone, c.text_hash))
+            all_chunks.append(Chunk(i, c.text, c.pause_after_ms, c.tone,
+                                    c.text_hash, c.is_dialogue))
 
         # Junk lint — warn but don't abort (lint violations noted in report)
         lints = lint_chunks([c.to_dict() for c in all_chunks], ch["title"])
@@ -323,6 +329,7 @@ def tts_all_chapters(
                 audio, retried = _synth_with_retry(
                     chunk.text, chunk.tone, engine,
                     chapter["title"], chunk.idx,
+                    is_dialogue=chunk.is_dialogue,
                 )
                 sf.write(str(cache_path), audio, engine.sample_rate)
                 chunk_wavs.append((cache_path, chunk.pause_after_ms))

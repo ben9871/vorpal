@@ -24,6 +24,8 @@ from typing import Optional
 
 import pysbd
 
+from .segment.dialogue import is_dialogue_chunk as _is_dialogue_chunk
+
 # ── integer → word conversion ──────────────────────────────────────────────
 
 _ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven",
@@ -328,6 +330,7 @@ class Chunk:
     pause_after_ms: int    # 0 = no pause; >0 = paragraph boundary
     tone: Optional[str]    # always None here; post-v1 tone.py fills it
     text_hash: str
+    is_dialogue: bool = False  # Phase 24: True when chunk is majority quoted speech
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -375,6 +378,12 @@ def normalize_chapter(body: str, max_chars: int = 400,
     chunks: list = []
     idx = 0
 
+    def _emit(text: str, pause: int) -> None:
+        nonlocal idx
+        chunks.append(Chunk(idx, text, pause, None, _text_hash(text),
+                            _is_dialogue_chunk(text)))
+        idx += 1
+
     for para_i, para in enumerate(paragraphs):
         normalized_para = spoken_form(para)
         sentences = _sentences(normalized_para)
@@ -391,9 +400,7 @@ def normalize_chapter(body: str, max_chars: int = 400,
             if not _SPEAKABLE_RE.search(sent):
                 # ornament/divider → narrate nothing, breathe instead
                 if current:
-                    chunks.append(Chunk(idx, current, paragraph_pause_ms, None,
-                                        _text_hash(current)))
-                    idx += 1
+                    _emit(current, paragraph_pause_ms)
                     current = ""
                 elif chunks:
                     chunks[-1].pause_after_ms = max(chunks[-1].pause_after_ms,
@@ -404,9 +411,7 @@ def normalize_chapter(body: str, max_chars: int = 400,
             if len(sent) > max_chars:
                 # Flush current, then split oversized sentence at clause boundaries
                 if current:
-                    chunks.append(Chunk(idx, current, PAUSE_SENTENCE_MS, None,
-                                        _text_hash(current)))
-                    idx += 1
+                    _emit(current, PAUSE_SENTENCE_MS)
                     current = ""
                 clauses = re.split(r"(?<=[,;:])\s+", sent)
                 sub = ""
@@ -415,29 +420,23 @@ def normalize_chapter(body: str, max_chars: int = 400,
                         sub = (sub + " " + clause).strip() if sub else clause
                     else:
                         if sub:
-                            chunks.append(Chunk(idx, sub, PAUSE_SENTENCE_MS, None,
-                                                _text_hash(sub)))
-                            idx += 1
+                            _emit(sub, PAUSE_SENTENCE_MS)
                         sub = clause
                 if sub:
                     at_para_end = is_last_sent
                     pause = paragraph_pause_ms if at_para_end and not is_last_para else 0
-                    chunks.append(Chunk(idx, sub, pause, None, _text_hash(sub)))
-                    idx += 1
+                    _emit(sub, pause)
             elif len(current) + len(sent) + 1 <= max_chars:
                 current = (current + " " + sent).strip() if current else sent
             else:
                 if current:
-                    chunks.append(Chunk(idx, current, PAUSE_SENTENCE_MS, None,
-                                        _text_hash(current)))
-                    idx += 1
+                    _emit(current, PAUSE_SENTENCE_MS)
                 current = sent
 
         # End of paragraph — emit with paragraph pause (unless last paragraph)
         if current:
             pause = paragraph_pause_ms if not is_last_para else 0
-            chunks.append(Chunk(idx, current, pause, None, _text_hash(current)))
-            idx += 1
+            _emit(current, pause)
 
     return chunks
 
@@ -481,11 +480,12 @@ def normalize_with_tones(body: str, paragraph_tones: list,
         tone_val = None if tone == "neutral" else tone
         for c in run_chunks:
             all_chunks.append(Chunk(c.idx, c.text, c.pause_after_ms, tone_val,
-                                    c.text_hash))
+                                    c.text_hash, c.is_dialogue))
 
     # Re-index sequentially
     for i, c in enumerate(all_chunks):
-        all_chunks[i] = Chunk(i, c.text, c.pause_after_ms, c.tone, c.text_hash)
+        all_chunks[i] = Chunk(i, c.text, c.pause_after_ms, c.tone, c.text_hash,
+                              c.is_dialogue)
 
     return all_chunks
 

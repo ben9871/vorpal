@@ -44,7 +44,8 @@ class MockEngine(TTSEngine):
     def voice_cache_key(self) -> str:
         return self.voice
 
-    def synthesize(self, text: str, tone: Optional[str] = None):
+    def synthesize(self, text: str, tone: Optional[str] = None,
+                   is_dialogue: bool = False):
         if self.fail_on and self.fail_on in text:
             raise RuntimeError(
                 f"MockEngine: deliberately failing — text contains {self.fail_on!r}"
