@@ -76,7 +76,11 @@ def _cache_key(chunk: Chunk, engine: TTSEngine) -> str:
     speed = getattr(engine, "speed", 1.0)
     has_dlg_shift = bool(getattr(engine, "dialogue_style", None))
     dlg_part = "_dlg" if (chunk.is_dialogue and has_dlg_shift) else ""
-    raw = f"{chunk.text_hash}_{engine.name}_{voice_key}_{speed}_{tone_part}{dlg_part}"
+    # Phase 35: per-chunk voice routing (plays). Suffix appears only when a
+    # chunk carries a voice override — book builds (voice_id=None) keep their
+    # pre-Phase-35 keys byte-identical, so no existing cache is invalidated.
+    vc_part = f"_vc_{chunk.voice_id}" if getattr(chunk, "voice_id", None) else ""
+    raw = f"{chunk.text_hash}_{engine.name}_{voice_key}_{speed}_{tone_part}{dlg_part}{vc_part}"
     # Sanitize for use as a filename
     raw = re.sub(r"[^\w\-]", "_", raw)
     return raw + ".wav"

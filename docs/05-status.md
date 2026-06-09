@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 34 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 35 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -48,8 +48,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 31 — Gutenberg play downloader + plain-text play parser | ✅ done | commit `9c5a7b1` |
 | Arc 7: Phase 32 — character extraction + role classification | ✅ done | commit `4b6059b` |
 | Arc 7: Phase 33 — stage direction classification + emotion hints | ✅ done | commit `8fae5ab` |
-| Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit Phase 34 |
-| **Arc 7: Phase 35** — multi-voice synthesis routing | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit `19897c1` |
+| Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit Phase 35 |
+| **Arc 7: Phase 36** — act/scene chapter structure | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
 `docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
@@ -58,6 +59,48 @@ multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
 `vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
 hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 35 acceptance results
+
+**814 tests green** (814 = 795 Phase-34 + 19 new in `tests/test_phase35.py`).
+
+### What was built
+
+Multi-voice synthesis routing: beats → voiced chunks → per-voice engines.
+
+- `vorpal/normalize.py` — `Chunk.voice_id: Optional[str] = None` field
+  (default None = book-level voice, same as before)
+- `vorpal/synth.py` — `_cache_key()` appends `_vc_<voice_id>` **only when the
+  chunk carries a voice override**; book builds keep byte-identical keys, so
+  no existing cache is invalidated (the roadmap's migration requirement)
+- `vorpal/play/synth_router.py` — new module:
+  - `route_chunks(beats, cast_sheet, stage_directions, max_chars)`: speech
+    beats normalized per-beat into prosody chunks carrying the speaker's cast
+    voice id; `stage_directions="skip"` (default) drops directions,
+    `"narrator"` narrates them (brackets stripped, terminal period added)
+    with `cast_sheet.narrator_voice`; speaker missing from the cast sheet →
+    `ValueError` (fail loud — silent fallback would miscast); last chunk of
+    each beat gets `PAUSE_TURN_MS` (700 ms) speaker-change pause
+  - `synthesize_routed_chunks(chunks, voice_engines, cache_dir)`: dispatches
+    each chunk to its voice's engine via the existing cache + retry machinery;
+    missing engine for a routed voice → `ValueError`; returns
+    `(chunk_wavs, {"done", "cached"})`
+- `tests/test_phase35.py` — 19 unit tests
+
+### Acceptance
+
+- 814 tests green ✅
+- 2-character 4-beat exchange → 4 synthesis calls with correct voice ids,
+  in order ✅
+- Cache key differs between characters reading the same line (`_vc_` suffix);
+  `voice_id=None` key byte-identical to pre-Phase-35 format (exact-string
+  test) ✅ — zero cache key drift, all pre-existing synth tests untouched ✅
+- Direction chunks absent under `skip`; present once, narrator-voiced,
+  bracket-stripped under `narrator` ✅
+- Cache round-trip: first run `done=4`, second run `cached=4` ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 34 acceptance results
 

@@ -331,6 +331,7 @@ class Chunk:
     tone: Optional[str]    # always None here; post-v1 tone.py fills it
     text_hash: str
     is_dialogue: bool = False  # Phase 24: True when chunk is majority quoted speech
+    voice_id: Optional[str] = None  # Phase 35: per-chunk voice (plays); None = book voice
 
     def to_dict(self) -> dict:
         return asdict(self)
