@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 38 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 39 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -52,8 +52,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit `e975a18` |
 | Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit `520342a` |
 | Arc 7: Phase 37 — tone/emotion from stage direction context | ✅ done | commit `8be6185` |
-| Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit Phase 38 |
-| **Arc 7: Phase 39** — cast audition mode | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit `d761a71` |
+| Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit Phase 39 |
+| **Arc 7: Phase 40** — play corpus hardening loop | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
 `docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
@@ -62,6 +63,45 @@ multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
 `vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
 hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 39 acceptance results
+
+**874 tests green** (874 = 861 Phase-38 + 13 new in `tests/test_phase39.py`).
+
+### What was built
+
+Cast audition mode: hear the cast before committing to a full synthesis.
+
+- `vorpal/play/audition.py` — new module:
+  - `select_audition_lines(play_doc, name, max_lines=3, max_words=200)` —
+    longest speeches first, ≤ 3 beats, cumulative ≤ 200 words; always at
+    least one speech when the character speaks (even if it alone exceeds
+    the cap); tone hints preserved
+  - `build_audition(play_doc, cast_sheet, cast, output_dir, voices, …)` —
+    one `<CHARACTER>.wav` per non-cameo character, synthesized with the
+    assigned voice + tone hints, 0.6 s gap between speeches; engines built
+    once per distinct voice; missing voice for a character → `ValueError`
+- `vorpal/cli.py` — `cast-audition` subcommand: `input`, `--output`
+  (default `<stem>_audition/`), `--cast-override`; **reuses
+  `<stem>_workdir/cast_sheet.json` when one exists** so the audition hears
+  exactly the cast `vorpal play` would use
+- `tests/test_phase39.py` — 13 unit tests
+- `docs/09-human-review-queue.md` — H-012 filed (audition listen verdict)
+
+### Acceptance
+
+- 874 tests green ✅
+- Live run (real Kokoro, GPU): `vorpal cast-audition pocket_trial.txt` →
+  `ALICE.wav` (12.5 s, af_heart) + `WHITE_RABBIT.wav` (5.5 s, bm_daniel) in
+  `pocket_trial_audition/`; cameos (KING, QUEEN) correctly excluded;
+  existing cast sheet (with Phase 38 overrides) correctly reused ✅
+- Files non-empty, correctly named (`FIRST CLOWN` → `FIRST_CLOWN.wav`) ✅
+- Line-selection logic unit-tested (longest-first, caps, single-overlong) ✅
+- **(human, H-012)** Listen to a Hamlet audition and approve/adjust the cast
+  — full-Hamlet synthesis deferred until that verdict. ✅ filed
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 38 acceptance results
 

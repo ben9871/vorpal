@@ -322,6 +322,45 @@ to Kokoro with a clear message. Live speed comparison deferred to operator.
 
 ---
 
+### [H-012] Phase 39 — Cast audition verdict (theatrical mode)
+**Added:** 2026-06-09  **Status:** open
+
+**What to review / do:**
+Generate and listen to an audition of the Hamlet cast (GPU box, ~2 min of
+audio across ~14 clips):
+
+```
+vorpal cast-audition corpus/plays/hamlet.txt
+# → hamlet_audition/HAMLET.wav, KING.wav, OPHELIA.wav, …
+```
+
+Each non-cameo character gets one WAV with their 1–3 longest speeches in
+their assigned voice. A tiny pre-made sample also exists from the Phase 38/39
+acceptance runs: `scratch/pocket_trial_audition/ALICE.wav` (af_heart) and
+`WHITE_RABBIT.wav` (bm_daniel).
+
+Questions: do the principals sound distinct from each other? Does the
+protagonist voice fit? Do any shared minor voices clash badly?
+
+**Decision options:**
+- **Casting is acceptable:** no action — `vorpal play <play> --approve`
+  uses the same assignments.
+- **Specific recast wanted:** either edit `<stem>_workdir/cast_sheet.json`
+  (assignments map: character → voice id) or write a
+  `cast_override.json` like `{"HAMLET": "bm_daniel"}` and pass
+  `--cast-override` to both `cast-audition` (to re-listen) and `play`.
+- **Casting algorithm itself is wrong** (e.g. systematically poor pairings):
+  describe the pattern — agent will revise `vorpal/play/casting.py` rules.
+
+**Agent's assumption:** the algorithmic cast (gender-matched, protagonist →
+bm_george, unique voices for >50-line parts) is a reasonable default;
+the full-Hamlet multi-voice synthesis is deferred until this verdict so a
+4-hour build isn't burned on a cast nobody has heard.
+
+**Outcome (fill in when done):** …
+
+---
+
 ## Closed items
 
 *(Move entries here when addressed. Keep them for the record.)*

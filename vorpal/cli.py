@@ -291,6 +291,23 @@ def build_parser() -> argparse.ArgumentParser:
                           dest="no_tone_hints",
                           help="Ignore emotion hints from stage directions")
 
+    audition_cmd = sub.add_parser(
+        "cast-audition",
+        help="Synthesize a short audition WAV per character (Arc 7)",
+    )
+    audition_cmd.add_argument(
+        "input",
+        help="Play text (.txt, Gutenberg stripped) or parsed play.json",
+    )
+    audition_cmd.add_argument(
+        "--output", default=None,
+        help="Audition directory (default: <stem>_audition/)",
+    )
+    audition_cmd.add_argument(
+        "--cast-override", default=None, dest="cast_override",
+        help='JSON file {"CHARACTER": "voice_id"} overriding assignments',
+    )
+
     return parser
 
 
@@ -1304,6 +1321,60 @@ def main(argv=None) -> None:
         cmd_cast(args)
     elif args.command == "play":
         cmd_play(args)
+    elif args.command == "cast-audition":
+        cmd_cast_audition(args)
+
+
+def cmd_cast_audition(args) -> None:
+    import json as _json
+
+    from .play.audition import build_audition
+    from .play.casting import (
+        CastSheet, apply_overrides, assign_voices, castable_voices,
+    )
+    from .play.characters import extract_cast
+    from .play.pipeline import load_play
+    from .tts.voices import VOICE_REGISTRY
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        sys.exit(f"ERROR: File not found: {input_path}")
+
+    play = load_play(input_path)
+    cast = extract_cast(play)
+    if not cast:
+        sys.exit("ERROR: no speakers found — is this a play?")
+    voices = castable_voices(VOICE_REGISTRY)
+
+    # Reuse the play workdir's cast sheet when one exists (consistency with
+    # `vorpal play`); otherwise cast fresh.
+    sheet_path = Path(f"{input_path.stem}_workdir") / "cast_sheet.json"
+    if sheet_path.exists():
+        sheet = CastSheet.from_dict(
+            _json.loads(sheet_path.read_text(encoding="utf-8")))
+        print(f"Using existing cast sheet: {sheet_path}")
+    else:
+        sheet = assign_voices(cast, voices)
+
+    if args.cast_override:
+        override_path = Path(args.cast_override)
+        if not override_path.exists():
+            sys.exit(f"ERROR: override file not found: {override_path}")
+        try:
+            apply_overrides(
+                sheet,
+                _json.loads(override_path.read_text(encoding="utf-8")),
+                voices)
+        except ValueError as e:
+            sys.exit(f"ERROR: {e}")
+
+    out_dir = Path(args.output) if args.output else \
+        Path(f"{input_path.stem}_audition")
+    print(f"Auditioning non-cameo characters → {out_dir}/")
+    results = build_audition(play, sheet, cast, out_dir, voices)
+    for name, path in results.items():
+        print(f"  {name:<24} {sheet.assignments[name]:<20} → {path.name}")
+    print(f"\n{len(results)} audition clip(s) in {out_dir}/")
 
 
 def cmd_play(args) -> None:
