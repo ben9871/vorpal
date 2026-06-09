@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 40 — 2026-06-09
+Wrote `playground/the_persons_of_the_play.txt`: before today's fix, the parser staged Macbeth's Dramatis Personæ as a play — DUNCAN enters and says, in full, "King of Scotland"; MALCOLM says "his Son"; LADY MACDUFF says "Wife to Macduff" and exits, composed entirely of her relation to a man who does not appear. The most honest staging of Macbeth ever mounted, fixed by a regex called `_PERSONAE_RE`. End of Arc 7: six plays, ten phases, one machine that can hold an entire cast in its mouth at once.
+
 ## Phase 39 — 2026-06-09
 Wrote `playground/the_audition_of_the_jabberwock.txt`: the Jabberwock auditions for its own poem, but it has no speech beats — it only burbles, secondhand — so `select_audition_lines()` returns `[]` and it is skipped without a crash, reported by absence. The only character in "Jabberwocky" who'd get an audition WAV is the father, protagonist by word count, chortling in bm_george. The monster and the hero both cut from the tape; the man who stayed home gets the part.
 
