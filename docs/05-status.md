@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 41 done — fidelity tooling live; Trotsky v1–v4 pre-flight PASSED, v5 gated).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 42 done — Trotsky audition rendered, H-013 filed, proceeding with `blend_deep_steady`).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -56,8 +56,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit `51d22f6` |
 | Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
 | Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ✅ done | commit Phase 41 |
-| Arc 8: Phase 42 — voice selection: Trotsky audition | ⬅ next | — |
-| Arc 8: Phase 43 — Volume 1 production build (1918) | queued | — |
+| Arc 8: Phase 42 — voice selection: Trotsky audition | ✅ done (pending H-013 listen) | commit Phase 42 |
+| Arc 8: Phase 43 — Volume 1 production build (1918) | ⬅ next | — |
 | Arc 8: Phase 44 — Volumes 2-3 production builds (1919, 1920) | queued | — |
 | Arc 8: Phase 45 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
 
@@ -77,6 +77,45 @@ listening spot-checks are H-013 (voice audition verdict) through H-018 (per-volu
 listen). See `docs/04-roadmap.md` Arc 8 for full acceptance criteria and voice rationale.
 
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 42 acceptance results
+
+**923 tests green** (no new code in `vorpal/` — audition is a scratch
+script; suite re-run to confirm).
+
+### What was done
+
+Voice audition for the Trotsky production run: 4 passages × 3 candidate
+voices = 12 clips in `trotsky/audition/` (gitignored), rendered with real
+Kokoro on GPU, 40–64 s each, RMS 0.054–0.071, none silent.
+
+- Passages (marker-extracted from the v1 workdir, reproducible via
+  `scratch/trotsky_audition.py`): polemical opening (*We Need an Army*),
+  analytical (*The Path of the Red Army*), direct address (*The Socialist
+  Oath*), peroration (*The International Revolution*). Full table in
+  `docs/06-corpus.md` §"Voice audition".
+- Candidates: `blend_deep_steady` (Fenrir 55 / Michael 45 — roadmap pick),
+  `am_fenrir`, `bm_george`.
+- **H-013 filed** — listening verdict. Proceeding with `blend_deep_steady`
+  per the roadmap; a later swap is one `--voice` re-synthesis per volume.
+
+### Environment note (recurring)
+
+`transformers` had drifted back to 5.10.2 in this container (the pyproject
+pin `transformers<5` exists, but the venv predates it / drifted), breaking
+Kokoro on torch 2.5.1+cu121 — same failure as the Phase 37 note. Fixed in
+the live venv with `pip install "transformers>=4.40,<4.50"` → 4.49.0.
+**If Kokoro raises `AlbertModel` import errors, check transformers first.**
+
+### Acceptance
+
+- Audition clips produced and non-empty (12/12, RMS-verified) ✅
+- H-013 filed ✅
+- Candidates + assumed selection recorded in corpus doc ✅
+- 923 tests green ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 41 acceptance results
 

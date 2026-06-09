@@ -173,3 +173,21 @@ frontmatter by default, surfaced at the review gate. Flip `include` in
    text is lost is the **Phase 45 gate** — v5 must not be synthesized until
    root-caused. Also: `mojibake_tokens: 64`, scattered single-letter chart
    junk (e.g. p. 20) to inspect.
+
+### Voice audition (Phase 42 — `trotsky/audition/`, wavs gitignored)
+
+Regenerate with `python scratch/trotsky_audition.py` (passages are
+marker-extracted from the v1 workdir — reproducible). Candidates:
+`blend_deep_steady` (roadmap pick), `am_fenrir`, `bm_george`. Four
+~150-word passages from Volume 1:
+
+| passage | chapter | first words |
+|---|---|---|
+| `polemical_opening` | We Need an Army (Moscow Soviet speech, 19 Mar 1918) | "Comrades! Our Soviet Socialist Republic needs a…" |
+| `analytical` | Introduction: The Path of the Red Army | "The problems connected with the creation of the armed forces…" |
+| `address_to_soldiers` | The Socialist Oath | "I, a son of the working people…" |
+| `peroration` | The International Revolution (closing) | "The breathing space given us by history…" |
+
+12 clips rendered (real Kokoro, GPU), 40–64 s each, RMS 0.054–0.071, none
+silent. **Assumed selection: `blend_deep_steady`** (H-013 filed; a later
+swap re-synthesizes per volume via `--voice`, nothing structural).

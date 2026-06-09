@@ -361,6 +361,46 @@ the full-Hamlet multi-voice synthesis is deferred until this verdict so a
 
 ---
 
+### [H-013] Phase 42 — Trotsky narrator voice verdict
+**Added:** 2026-06-09  **Status:** open
+
+**What to review / do:**
+Listen to the 12 audition clips in `trotsky/audition/` (4 passages × 3
+voices, 40–64 s each; regenerate any time with
+`python scratch/trotsky_audition.py`):
+
+- `blend_deep_steady_*` — Fenrir 55% + Michael 45% (the roadmap's pick)
+- `am_fenrir_*` — Fenrir alone (deeper, more commanding)
+- `bm_george_*` — George (the long-standing default narrator, British)
+
+The four passages exercise the range of the prose: `polemical_opening`
+(speech to the Moscow Soviet, March 1918), `analytical` (the author's
+introduction on revolutionary violence), `address_to_soldiers` (the
+Socialist Oath), `peroration` (the closing of "The International
+Revolution").
+
+Question: which voice should narrate all five production volumes?
+(~30+ hours of audio — worth choosing carefully. Authority without
+theatricality is the brief.)
+
+**Decision options:**
+- **Confirm `blend_deep_steady`:** no action — production builds (Phases
+  43–45) already use it.
+- **Prefer `am_fenrir` or `bm_george`:** note it here; the agent re-runs
+  the volume builds with `--voice <id>` (the TTS cache makes only the
+  voice change re-synthesize; mastering re-runs).
+- **None fits:** name what's wrong (pace, depth, accent) — the agent will
+  blend a new candidate and re-audition.
+
+**Agent's assumption:** proceeded with `blend_deep_steady` per the roadmap
+default ("declarative, urgent, highly structured — authority without
+theatricality"). All five volumes will be built with it; a later voice swap
+costs one re-synthesis pass per volume, nothing structural.
+
+**Outcome (fill in when done):** …
+
+---
+
 ## Closed items
 
 *(Move entries here when addressed. Keep them for the record.)*
