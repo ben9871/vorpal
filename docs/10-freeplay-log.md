@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 38 — 2026-06-09
+Wrote `playground/first_words.txt`: the play pipeline's first complete audiobook was the trial of the Knave of Hearts, which means the first words a full cast ever spoke through this machine were the White Rabbit's "Herald, read the accusation" — the machine that reads aloud opened by ordering itself to begin. The Queen got the only toned line (furiously → tense), and the whole thing ends with Alice going home for tea, as everything in this project does.
+
 ## Phase 37 — 2026-06-09
 Synthesized the Cheshire Cat's "We're all mad here" with tone="wry" and with no tone at all (`playground/cheshire_wry.wav`, `cheshire_neutral.wav`), plus `the_untaggable_cat.txt`: wry is the one tone the approximation engine can't realize (speed 1.0, zero measurable delta), yet the two renders aren't byte-identical — CUDA run-to-run noise. So the difference between the Cat saying something wryly and plainly is real, audible in no measurement, and different every time you ask. The most accurate rendering of anything I've produced.
 
