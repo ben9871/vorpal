@@ -19,6 +19,9 @@ dependencies = [
     "pysbd>=0.3.4",
     "kokoro>=0.9",
     "torch>=2.2",
+    # transformers 5.x requires torch >= 2.7 (torch.float8_e8m0fnu) and breaks
+    # kokoro's AlbertModel import on the torch 2.5 CUDA stack — keep to 4.x
+    "transformers<5",
 ]
 
 [project.optional-dependencies]

@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 36 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 37 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -50,8 +50,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 33 — stage direction classification + emotion hints | ✅ done | commit `8fae5ab` |
 | Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit `19897c1` |
 | Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit `e975a18` |
-| Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit Phase 36 |
-| **Arc 7: Phase 37** — tone/emotion from stage direction context | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit `520342a` |
+| Arc 7: Phase 37 — tone/emotion from stage direction context | ✅ done | commit Phase 37 |
+| **Arc 7: Phase 38** — `vorpal play` end-to-end command | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
 `docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
@@ -60,6 +61,72 @@ multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
 `vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
 hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 37 acceptance results
+
+**842 tests green** (842 = 832 Phase-36 + 10 new in `tests/test_phase37.py`).
+
+### What was built
+
+Tone hints from stage directions now reach synthesis.
+
+- `vorpal/play/synth_router.py` — `route_chunks(..., use_tone_hints=True)`:
+  a speech beat carrying `tone_hint` (stamped by the Phase 33 parser pass from
+  the preceding emotion-hint direction) has that tone applied to **every chunk
+  of the speech**; `use_tone_hints=False` routes all-neutral; narrated
+  direction chunks stay neutral; hints never leak to the following speech
+- `vorpal/synth.py` `_cache_key` already includes tone — no change needed
+  (verified: somber chunk and neutral chunk of the same line get different keys)
+- `pyproject.toml` — pin `transformers<5` (see environment note below)
+- `tests/test_phase37.py` — 10 unit tests, incl. end-to-end
+  parse → stamp → route on a fixture play ("[Weeping.]" → somber speech,
+  "[Aside.]" → wry speech, unhinted speeches neutral)
+
+### Acoustic delta — real Kokoro on GPU (recorded, not asserted)
+
+Ophelia's rosemary lines (af_heart, KokoroApproxEngine):
+
+| Render | Duration | RMS | Dominant freq |
+|---|---|---|---|
+| neutral | 6.625 s | 0.0495 | 209 Hz |
+| somber | 7.375 s | 0.0498 | 251 Hz |
+| wry | 6.625 s | 0.0495 | 213 Hz |
+
+- somber vs neutral: **dur_diff 11.3%** (≥ 5% Phase 11 gate → PASS);
+  dominant-freq delta 41 Hz ✅
+- wry vs neutral: zero delta — consistent with the known Phase 11 finding
+  (KokoroApprox realizes tones via speed only; wry has no speed delta).
+  Honest limitation, unchanged.
+- VRAM peak 691 MB (11% of 6 GB) ✅
+- Clips in `scratch/ophelia_{neutral,somber}.wav` (gitignored)
+
+### Environment fix (important for future sessions)
+
+`transformers` had drifted to 5.10.2 (transitive, probably via the Phase 23
+styletts2 install), which requires torch ≥ 2.7 (`torch.float8_e8m0fnu`) and
+**broke Kokoro entirely** (`AlbertModel` import error) on the torch 2.5.1+cu121
+stack. Fixed by `pip install "transformers>=4.40,<4.50"` → 4.49.0, and pinned
+`transformers<5` in pyproject so a rebuild can't regress. Note: a fresh
+`pip install -e .` on the host should pick up the pin.
+
+### Known limitation (Phase 40 candidate)
+
+Mixed entry directions like "[Enter OPHELIA, weeping.]" classify as
+`entry_exit` (Phase 33 priority order), so their emotion content does **not**
+propagate — only standalone emotion directions ("[Weeping.]") do. Flagged for
+the Phase 40 hardening loop to evaluate against real plays.
+
+### Acceptance
+
+- 842 tests green ✅
+- Chunks after a "weeping" direction carry `somber`; no preceding direction →
+  neutral; `aside` → `wry` ✅ (parser → router end-to-end)
+- Acoustic delta recorded above (not gated in pytest, per roadmap) ✅
+- Default book pipeline unaffected (route_chunks is play-only; full suite
+  green) ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 36 acceptance results
 

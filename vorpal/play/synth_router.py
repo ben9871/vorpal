@@ -39,11 +39,18 @@ def route_chunks(
     cast_sheet: CastSheet,
     stage_directions: str = "skip",
     max_chars: int = 400,
+    use_tone_hints: bool = True,
 ) -> List[Chunk]:
     """Route a beat sequence to voiced synthesis chunks.
 
     ``stage_directions``: ``"skip"`` (default — directions dropped) or
     ``"narrator"`` (directions narrated with ``cast_sheet.narrator_voice``).
+
+    ``use_tone_hints`` (Phase 37): a speech beat carrying a ``tone_hint``
+    (stamped by the parser from the preceding emotion-hint direction —
+    "[Weeping]" → ``somber``, "[Aside]" → ``wry``) has the tone applied to
+    every chunk of that speech; tone-capable engines render it, plain
+    engines ignore it. ``False`` routes everything neutral.
 
     A speech beat whose speaker is missing from the cast sheet is an error —
     the cast sheet is built from the same play, so a miss means the inputs
@@ -56,6 +63,7 @@ def route_chunks(
 
     routed: List[Chunk] = []
     for beat in beats:
+        tone_hint: Optional[str] = None
         if beat.type == "direction":
             if stage_directions == "skip":
                 continue
@@ -70,6 +78,8 @@ def route_chunks(
                     f"cast sheet and play are out of sync")
             text = beat.text
             voice_id = cast_sheet.assignments[beat.speaker]
+            if use_tone_hints:
+                tone_hint = getattr(beat, "tone_hint", None)
         else:
             continue
 
@@ -85,7 +95,7 @@ def route_chunks(
                 idx=len(routed),
                 text=c.text,
                 pause_after_ms=pause,
-                tone=c.tone,
+                tone=tone_hint or c.tone,
                 text_hash=c.text_hash,
                 is_dialogue=c.is_dialogue,
                 voice_id=voice_id,
