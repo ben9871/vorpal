@@ -106,6 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Skip mastering: emit a single concatenated preview WAV "
                             "at <stem>_draft.wav instead of building the .m4b; "
                             "10x faster for iteration on chapter/voice/tone settings")
+    build.add_argument("--footnotes", choices=["none", "inline", "chapter"],
+                       default="none", dest="footnotes",
+                       help="Footnote narration mode (default: none — footnotes silent). "
+                            "inline: append footnotes after each chapter; "
+                            "chapter: emit all footnotes as a separate (skipped) chapter.")
     build.add_argument("--repair", action="store_true",
                        help="After extraction, propose LLM repairs for low-confidence "
                             "OCR blocks; show diffs in review for approval before build")
@@ -336,6 +341,40 @@ def cmd_build(args) -> None:
         # Apply approved entries to chapter bodies
         for ch in chapters:
             ch["body"] = apply_lexicon_to_text(ch["body"], updated)
+
+    # ── Optional: footnote narration (--footnotes) ──────
+    footnotes_mode = getattr(args, "footnotes", "none")
+    if footnotes_mode != "none":
+        from .footnotes_narration import (
+            load_footnotes_json, assign_to_chapter,
+            format_inline_text, make_footnotes_chapter,
+        )
+        all_footnotes = load_footnotes_json(work_dir)
+        if all_footnotes:
+            if footnotes_mode == "inline":
+                # Re-load sections from manifest for page-range lookup
+                chapter_sections = [Section.from_dict(d)
+                                     for d in manifest.data["chapters"]]
+                n_injected = 0
+                for ch, sec in zip(chapters, chapter_sections):
+                    if ch["skip"]:
+                        continue
+                    fns = assign_to_chapter(all_footnotes, sec)
+                    if fns:
+                        block = format_inline_text(fns)
+                        if block:
+                            ch["body"] = ch["body"].rstrip() + "\n\n" + block
+                            n_injected += len(fns)
+                print(f"\n  --footnotes inline: {n_injected} footnote(s) appended "
+                      f"to chapter bodies.")
+            elif footnotes_mode == "chapter":
+                fn_chapter = make_footnotes_chapter(all_footnotes)
+                if fn_chapter:
+                    chapters.append(fn_chapter)
+                    print(f"\n  --footnotes chapter: {len(all_footnotes)} footnote(s) "
+                          f"in synthetic 'Footnotes' chapter (skipped by default).")
+        else:
+            print(f"\n  --footnotes {footnotes_mode}: no footnotes found in workdir.")
 
     # ── Step 4: TTS ───────────────────────────────────
     if args.redo_tts and chapters_dir.exists():

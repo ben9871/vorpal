@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 24 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 25 done — Arc 5 complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -39,13 +39,45 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 5: Phase 22 — tone with instruction engine | 🚫 blocked | depends on Phase 21 |
 | Arc 5: Phase 23 — StyleTTS2 voice design spike | ✅ done (pending human verdict) | commit Phase 23 — see H-009 |
 | Arc 5: Phase 24 — dialogue-aware delivery | ✅ done | commit Phase 24 |
-| **Arc 5: Phase 25** (footnote narration mode) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 5: Phase 25 — footnote narration mode | ✅ done | commit Phase 25 |
+| **Arc 6: Phase 26** (Piper draft engine) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
-**Arc 4 complete.** Phases 15–20 done.
-**Arc 5 in progress.** Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` (H-002);
-Phase 23 done (human verdict on StyleTTS2 samples pending — H-009);
-Phase 24 done; Phase 25 (footnote narration mode) next.
+**Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
+Phases 23–25 done).
+**Arc 6 next.** Phase 26 (Piper draft engine) is first.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 25 acceptance results
+
+**586 tests green** (586 = 556 Phase-24 + 30 new in `tests/test_phase25.py`).
+
+### What was built
+
+Opt-in footnote narration: `--footnotes {inline,chapter}` (default `none`).
+
+- `vorpal/footnotes_narration.py` — new module:
+  - `load_footnotes_json(work_dir)`: reads `footnotes.json`; returns `[]` if absent
+  - `assign_to_chapter(footnotes, section)`: filters footnotes by section page range (0-based, exclusive end); handles both Section objects and manifest dicts
+  - `format_inline_text(footnotes, start_index)`: builds spoken "Footnote one. [text]" blocks with `spoken_form()` normalization; strips leading `*`, `†`, `1.`, `2)` markers
+  - `format_chapter_body(footnotes)`: wraps inline format for chapter mode
+  - `make_footnotes_chapter(footnotes)`: returns synthetic chapter dict with `kind="footnotes"`, `skip=True`
+- `vorpal/cli.py`:
+  - `--footnotes {none,inline,chapter}` flag added
+  - `inline` mode: appends formatted footnote block to each chapter's body before TTS
+  - `chapter` mode: appends synthetic Footnotes chapter (skipped by default)
+  - Falls back silently when no `footnotes.json` exists (EPUB/TXT builds)
+- `tests/test_phase25.py` — 30 unit tests
+
+### Acceptance
+
+- 586 tests green ✅
+- Default build (no `--footnotes`) unchanged — footnotes absent from TTS ✅
+- `assign_to_chapter` correctly clips by page range ✅
+- `format_inline_text` strips markers, uses spoken labels, normalizes text ✅
+- `make_footnotes_chapter` returns `skip=True`, `kind="footnotes"` ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 24 acceptance results
 
