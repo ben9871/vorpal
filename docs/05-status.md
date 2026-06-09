@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 35 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 36 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -49,8 +49,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 32 — character extraction + role classification | ✅ done | commit `4b6059b` |
 | Arc 7: Phase 33 — stage direction classification + emotion hints | ✅ done | commit `8fae5ab` |
 | Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit `19897c1` |
-| Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit Phase 35 |
-| **Arc 7: Phase 36** — act/scene chapter structure | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit `e975a18` |
+| Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit Phase 36 |
+| **Arc 7: Phase 37** — tone/emotion from stage direction context | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
 `docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
@@ -59,6 +60,42 @@ multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
 `vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
 hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 36 acceptance results
+
+**832 tests green** (832 = 814 Phase-35 + 18 new in `tests/test_phase36.py`).
+
+### What was built
+
+Act/scene chapter structure for plays.
+
+- `vorpal/play/chapters.py` — new module:
+  - `build_play_chapters(play_doc, mode)` — `mode="act"` (default): one chapter
+    per act, all scene beats concatenated in order; `mode="scene"`: one per
+    scene, titled `"Act I, Scene 3 — <location>"`; chapter dicts carry
+    `title/kind/skip/spoken_intro/beats` (book-pipeline shape + beats for the
+    synthesis router); beat-less acts/scenes dropped; invalid mode raises
+  - `scene_location(scene)` — prefers the SCENE-header tail the parser captured;
+    falls back to the scene's first `location`-classified direction (Phase 33);
+    empty → no title suffix
+  - `_roman_to_int` / `_scene_number` — "Scene III" → "Scene 3" in titles
+- `tests/test_phase36.py` — 18 unit tests
+
+### Acceptance
+
+- 832 tests green ✅
+- 3-act 2-scene fixture: `act` mode → 3 chapters, `scene` mode → 6, locations
+  appended when present, no suffix when absent ✅
+- Location fallback: header location preferred; location-classified direction
+  used when header empty; entry/exit directions never mistaken for location ✅
+- Titles pass `spoken_form()` without errors (act + scene modes) ✅
+- Real Hamlet (corpus, recorded not asserted): act mode → 5 chapters
+  Act I–V; scene mode → 20 chapters, e.g. "Act I, Scene 1 — Elsinore.
+  A platform before the Castle." ✅
+- Existing chapter-pipeline tests untouched and green ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 35 acceptance results
 
