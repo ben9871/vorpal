@@ -1,5 +1,11 @@
 """Plain-text play parser targeting Gutenberg Shakespeare format.
 
+After the initial parse, a second pass applies emotion_hint tone tags to
+speech beats that follow an emotion-hint stage direction (Phase 33 wiring).
+The directions module is imported lazily to keep the dependency optional
+during unit-testing of the parser alone.
+
+
 Gutenberg Shakespeare conventions:
   - ACT I.  / SCENE I. Location text.   — headers on their own lines
   - HAMLET. / FIRST CLOWN.              — ALL-CAPS speaker label on its own line
@@ -186,4 +192,31 @@ def parse_play(text: str) -> PlayDoc:
                 speech_lines.append(stripped)
 
     _flush_speech()
+    _apply_emotion_hints(play)
     return play
+
+
+def _apply_emotion_hints(play: PlayDoc) -> None:
+    """Post-parse pass: propagate emotion_hint tone tags to following speech beats.
+
+    A speech beat that immediately follows an emotion-hint direction inherits
+    the tone tag from that direction. Only the immediately following speech is
+    tagged; subsequent speeches reset to no hint unless preceded by another
+    direction.
+    """
+    from .directions import classify_direction, extract_emotion_hint
+
+    for act in play.acts:
+        for scene in act.scenes:
+            pending_hint: Optional[str] = None
+            for beat in scene.beats:
+                if beat.type == "direction":
+                    kind = classify_direction(beat.text)
+                    if kind == "emotion_hint":
+                        pending_hint = extract_emotion_hint(beat.text)
+                    else:
+                        pending_hint = None
+                elif beat.type == "speech":
+                    if pending_hint is not None:
+                        beat.tone_hint = pending_hint
+                    pending_hint = None
