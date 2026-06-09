@@ -427,8 +427,24 @@ def cmd_build(args) -> None:
             manifest.data["settings"]["tone_histogram"] = hist
             manifest.save()
 
-    # Instantiate the engine based on the voice's declared engine type
-    if voice_entry.engine == "openai":
+    # Instantiate the engine based on the voice's declared engine type.
+    # --draft: prefer Piper (fast CPU engine) when available; fall back to Kokoro.
+    _draft_engine = "kokoro"   # updated to "piper" if Piper is selected below
+    if getattr(args, "draft", False):
+        from .tts.piper_engine import is_piper_available, PiperEngine as _PiperEngine
+        if is_piper_available():
+            try:
+                engine = _PiperEngine(speed=args.speed)
+                _draft_engine = "piper"
+                print(f"\n  --draft: using Piper ({engine.voice}) for fast CPU synthesis.")
+            except RuntimeError as _e:
+                print(f"\n  --draft: Piper init failed ({_e}); falling back to Kokoro.")
+                engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
+        else:
+            print(f"\n  --draft: Piper not available; using Kokoro "
+                  f"(install piper + set VORPAL_PIPER_MODEL for faster drafts).")
+            engine = KokoroEngine(params=voice_entry.params, speed=args.speed)
+    elif voice_entry.engine == "openai":
         from .tts.api_engine import _resolve_openai_key
         if not _resolve_openai_key():
             sys.exit(
@@ -498,9 +514,12 @@ def cmd_build(args) -> None:
     if getattr(args, "draft", False):
         # Draft mode: skip loudness normalization and AAC encoding.
         # Concatenate chapter WAVs directly into a single preview WAV.
+        # Label the artifact with the engine used so piper vs kokoro drafts
+        # are clearly distinguished (avoids silent cache confusion).
         final = _compile_draft_wav(chapter_results, output_stem,
                                    silence_ms=int(manifest.settings.get(
-                                       "inter_chapter_silence_ms", 1500)))
+                                       "inter_chapter_silence_ms", 1500)),
+                                   engine_label=_draft_engine)
     else:
         settings = manifest.settings
         target_lufs = float(settings.get("target_lufs", -18.0))
@@ -548,21 +567,23 @@ def cmd_build(args) -> None:
 
 
 def _compile_draft_wav(chapter_results: list, output_stem: str,
-                       silence_ms: int = 1500) -> Path:
+                       silence_ms: int = 1500,
+                       engine_label: str = "kokoro") -> Path:
     """Concatenate chapter WAVs into a single preview WAV (no mastering).
 
     Reads PCM frames directly from the 16-bit mono/stereo chapter WAVs produced
     by synthesis; inserts ``silence_ms`` of silence between chapters.  Writes to
-    ``<output_stem>_draft.wav``.
+    ``<output_stem>_draft_<engine_label>.wav`` so piper and kokoro drafts are
+    never confused.
 
     Returns the path to the output file.
     """
     import wave as _wave
     import struct as _struct
 
-    out_path = Path(f"{output_stem}_draft.wav")
-    print(f"\n[5/5] Draft mode: concatenating {len(chapter_results)} chapters "
-          f"→ {out_path.name} ...")
+    out_path = Path(f"{output_stem}_draft_{engine_label}.wav")
+    print(f"\n[5/5] Draft mode ({engine_label}): concatenating "
+          f"{len(chapter_results)} chapters → {out_path.name} ...")
 
     # Determine output parameters from the first available WAV
     sample_rate = 24000

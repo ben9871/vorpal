@@ -44,7 +44,7 @@ def test_draft_wav_creates_file(tmp_path):
     out = _compile_draft_wav(chapter_results, str(tmp_path / "book"), silence_ms=0)
     assert out.exists()
     assert out.suffix == ".wav"
-    assert out.name == "book_draft.wav"
+    assert out.name == "book_draft_kokoro.wav"
 
 
 def test_draft_wav_duration_sum(tmp_path):

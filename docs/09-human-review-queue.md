@@ -279,6 +279,45 @@ feels usable and doesn't miss anything the CLI exposes.
 
 ---
 
+### [H-011] Phase 26 — Piper draft live speed test
+**Added:** 2026-06-09  **Status:** open
+
+**What to review / do:**
+Install Piper on the host (or in the container via `docker/Dockerfile`) and
+configure a model:
+
+```
+# Install piper binary
+pip install piper-tts   # or download from github.com/rhasspy/piper/releases
+
+# Download a fast English model (e.g. en_US-amy-low, ~15 MB)
+wget https://github.com/rhasspy/piper/releases/download/v1.2.0/en_US-amy-low.onnx
+export VORPAL_PIPER_MODEL=/path/to/en_US-amy-low.onnx
+
+# Run a draft build and time it
+time vorpal build scratch/outline.pdf --draft
+```
+
+Compare wall-clock time to a Kokoro-draft on the same machine (CPU).
+The primary question: is Piper draft markedly faster than Kokoro draft on CPU?
+Also confirm the audio is intelligible (not gibberish).
+
+**Decision options:**
+- **Piper is faster and intelligible:** Phase 26 fully accepted.
+  Update docs/06-corpus.md with the timing results.
+- **Piper is not available / crashes:** file the specific error — agent will
+  investigate and fix.
+- **Quality too poor even for drafts:** note it and the Piper fallback path
+  remains as-implemented (Kokoro stays default).
+
+**Agent's assumption:** Piper is not installed in the container (`shutil.which('piper')` returns None).
+The engine code, fallback logic, and tests are complete. The `--draft` flag falls back
+to Kokoro with a clear message. Live speed comparison deferred to operator.
+
+**Outcome (fill in when done):** …
+
+---
+
 ## Closed items
 
 *(Move entries here when addressed. Keep them for the record.)*

@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 25 done — Arc 5 complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 26 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -40,12 +40,49 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 5: Phase 23 — StyleTTS2 voice design spike | ✅ done (pending human verdict) | commit Phase 23 — see H-009 |
 | Arc 5: Phase 24 — dialogue-aware delivery | ✅ done | commit Phase 24 |
 | Arc 5: Phase 25 — footnote narration mode | ✅ done | commit Phase 25 |
-| **Arc 6: Phase 26** (Piper draft engine) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 6: Phase 26 — Piper draft engine | ✅ done (pending live Piper test) | commit Phase 26 — see H-011 |
+| **Arc 6: Phase 27** (loudness profiles) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
 Phases 23–25 done).
-**Arc 6 next.** Phase 26 (Piper draft engine) is first.
+**Arc 6 in progress.** Phase 26 done (pending human Piper live test — H-010);
+Phase 27 (loudness profiles) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 26 acceptance results
+
+**603 tests green** (603 = 586 Phase-25 + 17 new in `tests/test_phase26.py`).
+
+### What was built
+
+Piper TTS engine for fast CPU draft synthesis.
+
+- `vorpal/tts/piper_engine.py` — `PiperEngine` implementing `TTSEngine`:
+  - Model discovery: `VORPAL_PIPER_MODEL` env → `~/.local/share/vorpal/piper/` → `~/.local/share/piper-tts/`
+  - `is_piper_available()`: checks both binary on PATH and model discovery
+  - `synthesize()`: calls `piper` CLI via subprocess, reads back the WAV output
+  - Raises `RuntimeError` on construction if binary or model absent
+- `vorpal/cli.py`:
+  - `--draft` now selects `PiperEngine` first when `is_piper_available()`; falls back to Kokoro with an explanatory message
+  - `_compile_draft_wav` now takes `engine_label` and writes `_draft_piper.wav` or `_draft_kokoro.wav` (so the two are never confused)
+- `tests/test_phase14.py` — updated filename assertion to `_draft_kokoro.wav`
+- `tests/test_phase26.py` — 17 unit tests
+
+### Acceptance (machine-checkable)
+
+- 603 tests green ✅
+- `is_piper_available()` returns `False` in test env (piper not installed) ✅
+- `PiperEngine` raises `RuntimeError` when binary or model absent ✅
+- Draft artifact correctly labelled `_draft_piper.wav` / `_draft_kokoro.wav` ✅
+- Default non-draft build unchanged ✅
+- No money spent, no remote push ✅
+
+### Acceptance (human, H-011)
+
+Live speed comparison: install Piper, run `vorpal build <book> --draft` on CPU,
+compare wall-clock to Kokoro draft. See H-011 in human-review-queue.
+
+---
 
 ## Phase 25 acceptance results
 
