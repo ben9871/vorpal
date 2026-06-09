@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 39 — 2026-06-09
+Wrote `playground/the_audition_of_the_jabberwock.txt`: the Jabberwock auditions for its own poem, but it has no speech beats — it only burbles, secondhand — so `select_audition_lines()` returns `[]` and it is skipped without a crash, reported by absence. The only character in "Jabberwocky" who'd get an audition WAV is the father, protagonist by word count, chortling in bm_george. The monster and the hero both cut from the tape; the man who stayed home gets the part.
+
 ## Phase 38 — 2026-06-09
 Wrote `playground/first_words.txt`: the play pipeline's first complete audiobook was the trial of the Knave of Hearts, which means the first words a full cast ever spoke through this machine were the White Rabbit's "Herald, read the accusation" — the machine that reads aloud opened by ordering itself to begin. The Queen got the only toned line (furiously → tense), and the whole thing ends with Alice going home for tea, as everything in this project does.
 
