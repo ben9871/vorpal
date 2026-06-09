@@ -308,6 +308,23 @@ def build_parser() -> argparse.ArgumentParser:
         help='JSON file {"CHARACTER": "voice_id"} overriding assignments',
     )
 
+    fidelity_cmd = sub.add_parser(
+        "fidelity",
+        help="Compare workdir chapter texts against the source file (Arc 8 QA)",
+    )
+    fidelity_cmd.add_argument(
+        "source",
+        help="Source file (.epub, .pdf, or .txt)",
+    )
+    fidelity_cmd.add_argument(
+        "workdir",
+        help="Workdir containing chapter_texts/ (from --stop-after segment or a full build)",
+    )
+    fidelity_cmd.add_argument(
+        "--output", default=None,
+        help="Write the Markdown report to this path (default: print only)",
+    )
+
     return parser
 
 
@@ -1323,6 +1340,31 @@ def main(argv=None) -> None:
         cmd_play(args)
     elif args.command == "cast-audition":
         cmd_cast_audition(args)
+    elif args.command == "fidelity":
+        cmd_fidelity(args)
+
+
+def cmd_fidelity(args) -> None:
+    from .qa.fidelity import (
+        run_fidelity_check, format_fidelity_report,
+    )
+
+    source_path = Path(args.source)
+    work_dir = Path(args.workdir)
+    if not source_path.exists():
+        sys.exit(f"ERROR: Source file not found: {source_path}")
+    if not work_dir.is_dir():
+        sys.exit(f"ERROR: Workdir not found: {work_dir}")
+
+    report = run_fidelity_check(source_path, work_dir)
+    text = format_fidelity_report(
+        report, source_label=str(source_path), workdir_label=str(work_dir))
+    print(text)
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8")
+        print(f"Report written to {args.output}")
+    if report.status == "failed":
+        sys.exit(1)
 
 
 def cmd_cast_audition(args) -> None:

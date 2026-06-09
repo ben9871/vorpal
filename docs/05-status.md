@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 40 done — **Arc 7 complete**; Arc 8 Trotsky production run queued).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 41 done — fidelity tooling live; Trotsky v1–v4 pre-flight PASSED, v5 gated).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -55,8 +55,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit `d761a71` |
 | Arc 7: Phase 39 — cast audition mode | ✅ done (pending H-012 listen) | commit `51d22f6` |
 | Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
-| Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ⬅ next | — |
-| Arc 8: Phase 42 — voice selection: Trotsky audition | queued | — |
+| Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ✅ done | commit Phase 41 |
+| Arc 8: Phase 42 — voice selection: Trotsky audition | ⬅ next | — |
 | Arc 8: Phase 43 — Volume 1 production build (1918) | queued | — |
 | Arc 8: Phase 44 — Volumes 2-3 production builds (1919, 1920) | queued | — |
 | Arc 8: Phase 45 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
@@ -77,6 +77,76 @@ listening spot-checks are H-013 (voice audition verdict) through H-018 (per-volu
 listen). See `docs/04-roadmap.md` Arc 8 for full acceptance criteria and voice rationale.
 
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 41 acceptance results
+
+**923 tests green** (923 = 894 Phase-40 + 29 new in `tests/test_phase41_fidelity.py`).
+
+### What was built
+
+`vorpal fidelity <source> <workdir>` — text fidelity QA (Arc 8 contract 1).
+
+- `vorpal/qa/fidelity.py` — new module:
+  - `extract_epub_chapter_texts` (per-spine-item, same `_html_to_text`
+    extractor as the pipeline), `extract_pdf_chapter_texts` (per-page text
+    layer), `extract_txt_chapter_texts`, `extract_workdir_chapter_texts`
+    (`chapter_texts/*.txt` in filename order)
+  - `compare_chapters(source, workdir) → FidelityReport`: per-chapter
+    difflib word-stream similarity against a greedily-aligned contiguous
+    source span (top-8 quick_ratio start candidates, bidirectional
+    extension); dropped-paragraph detection (≥ 8-word source paragraphs
+    absent from the whole output, normalized substring); order-anomaly
+    detection; unmatched-source listing. `passed` (all ≥ 0.90) /
+    `degraded` (any 0.70–0.90) / `failed` (any < 0.70)
+  - `format_fidelity_report` — Markdown table + drops + anomalies + verdict
+- `vorpal/cli.py` — `fidelity` subcommand (`--output` writes the report;
+  exit 1 on `failed`)
+- `vorpal/extract/epub.py` + `vorpal/extract/text.py` — **bug fix** (found
+  by the audit, see below)
+
+### Pre-flight audit (full table: `docs/06-corpus.md` §"Trotsky pre-flight")
+
+| vol | chapters | verdict | min sim | dropped ¶ |
+|---|---|---|---|---|
+| v1 (EPUB) | 38 | **PASSED** | 1.000 | 0 |
+| v2 (EPUB) | 161 | **PASSED** | 1.000 | 0 |
+| v3 (EPUB) | 132 | **PASSED** | 1.000 | 0 |
+| v4 (EPUB) | 78 | **PASSED** | 1.000 | 0 |
+| v5 (PDF) | 73 | **FAILED** | 0.217 | 259 flags |
+
+### Bug found → fixed → fixture-tested (the tool earned its keep on run #1)
+
+**`_BACK_PREFIXES = ("about ", …)` silently dropped real chapters**: v1
+"About the officers deceived by Krasnov" (1,000 w) + "About the ex-Officers"
+(569 w); v3 "About the Organisation of Labour" (**9,485 w**) + "About Bonar
+Law's Speech" (662 w) — all classified backmatter and excluded. Fixed in
+both `extract/epub.py` and `extract/text.py` (prefix narrowed to
+publisher/edition phrases); regression tests added. This was a violation of
+the "body text is never silently dropped" hard rule, live since Phase 5.
+
+Also fixed during the audit: fidelity span alignment extends backward as
+well as forward (v2's `chNN_split_000.htm` title-page stubs are merged into
+chapter bodies by the pipeline; forward-only matching depressed v2 scores
+to 0.906 and listed 129 false unmatched items — now 1.000 / clean).
+
+### v5 gate (Phase 45 input)
+
+v5's 285-entry outline has broken anchors (all → page 1–2, wkhtmltopdf
+artifact) → heuristic segmentation (74 chapters, conf 0.50). Fidelity FAIL
+is dominated by tiny Endnotes chapters at page boundaries and
+de-hyphenation false positives; **v5 must not be synthesized until Phase 45
+root-causes it**. v1–v4 are cleared for production.
+
+### Acceptance
+
+- 923 tests green ✅ (similarity, drops, order anomalies, empty workdir,
+  mismatched counts, merged spine items, EPUB extraction, CLI parser)
+- `vorpal fidelity` command exists, works on EPUB + PDF + TXT sources ✅
+- Pre-flight run on all five volumes, results recorded in corpus doc ✅
+- v1–v4: all chapters ≥ 0.90 (in fact 1.000) ✅; v5 honestly failed/gated ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 40 acceptance results
 

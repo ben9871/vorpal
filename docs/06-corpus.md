@@ -125,3 +125,51 @@ counts; speakers = distinct labels found, incl. group speakers like ALL).
 Group speakers (ALL, BOTH, WITCHES) parse and cast as ordinary cameo
 characters sharing pool voices — the roadmap's "dedicated group voice" idea
 is deferred (works correctly today, just not blended).
+
+## Trotsky pre-flight (Phase 41 — `trotsky/`, gitignored; operator-provided)
+
+Five volumes of Leon Trotsky's *Military Writings / How the Revolution Armed*
+(New Park Publications edition, via marxists.org EPUB/PDF conversions).
+All built `--stop-after segment`, then checked with the new `vorpal fidelity`
+command (workdir `chapter_texts/` vs. source spine items / PDF text layer).
+
+| vol | file | species | chapters | fidelity | min sim | dropped ¶ | unmatched source items |
+|---|---|---|---|---|---|---|---|
+| 1 (1918) | `military-writings-trotsky-v1.epub` | EPUB, 44 spine items | 38 | **PASSED** | 1.000 | 0 | titlepage, contents/online-edition intro (3 index files) |
+| 2 (1919) | `military-writings-trotsky-v2.epub` | EPUB, split-file chapters (`chNN_split_*`) | 161 | **PASSED** | 1.000 | 0 | titlepage, 2 index files |
+| 3 (1920) | `military-writings-trotsky-v3.epub` | EPUB | 132 | **PASSED** | 1.000 | 0 | titlepage, index, editorial foreword* |
+| 4 (1921–23) | `military-writings-trotsky-v4.epub` | EPUB | 78 | **PASSED** | 1.000 | 0 | titlepage, index, editorial foreword* |
+| 5 (1921–23) | `Military-Writings-Trotsky-v5.pdf` | born-digital PDF (wkhtmltopdf), 256 pp | 73 | **FAILED** | 0.217 | 259 flags | page 1 |
+
+\* v3/v4 `foreword.htm` (~825/862 words) is the publisher's historical
+foreword (third-person editorial voice, not Trotsky) — excluded as
+frontmatter by default, surfaced at the review gate. Flip `include` in
+`book.json` to narrate it.
+
+### Findings (Phase 41)
+
+1. **`about ` backmatter prefix swallowed real chapters** — v1 *About the
+   officers deceived by Krasnov* (1,000 words) + *About the ex-Officers*
+   (569), v3 *About the Organisation of Labour* (**9,485 words**) + *About
+   Bonar Law's Speech* (662) were silently excluded as backmatter by the
+   `_BACK_PREFIXES = ("about ", …)` rule in `extract/epub.py` +
+   `extract/text.py` (meant for "About the Author"). **Fixed**: prefix
+   narrowed to publisher/edition phrases; regression test in
+   `tests/test_phase41_fidelity.py`. Caught by the first fidelity run —
+   this is the exact failure mode the tool was built for.
+2. **Fidelity alignment needed backward extension** — v2 splits every
+   chapter into `chNN_split_000.htm` (a ≤ 34-word title-page stub) +
+   `_split_001.htm` (body). The pipeline correctly merges the stub into the
+   chapter, but span matching only extended forward, depressing v2 scores
+   to 0.906–0.99 and listing 129 stubs as unmatched. Fixed in
+   `vorpal/qa/fidelity.py` (`_best_span` extends both directions); v2 now
+   1.000 everywhere.
+3. **v5 outline is unusable** — 285 entries but every anchor points to
+   page 1–2 (wkhtmltopdf artifact), so the chapter cascade correctly fell
+   through to heuristics (74 chapters, conf 0.50 → review gate). The
+   fidelity FAIL is dominated by tiny "Endnotes" chapters at page
+   boundaries and de-hyphenation false positives (`hyphens_joined: 83`,
+   page-level source items vs. mid-page chapter splits); whether any real
+   text is lost is the **Phase 45 gate** — v5 must not be synthesized until
+   root-caused. Also: `mojibake_tokens: 64`, scattered single-letter chart
+   junk (e.g. p. 20) to inspect.

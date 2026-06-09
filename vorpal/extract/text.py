@@ -228,7 +228,12 @@ _BACK_KEYWORDS = frozenset([
     "index", "bibliography", "notes", "afterword", "appendix", "glossary",
     "further reading", "references", "selected works", "works cited",
 ])
-_BACK_PREFIXES = ("about ", "appendix ")
+# Note: a bare "about " prefix is too greedy — it swallowed real chapters
+# ("About the ex-Officers", "About the Organisation of Labour" in Trotsky's
+# Military Writings, found by the Phase 41 fidelity audit).  Only
+# publisher/edition material qualifies.
+_BACK_PREFIXES = ("about the publisher", "about the translator",
+                  "about this ", "appendix ")
 
 
 def _spoken_num(n: int) -> str:
