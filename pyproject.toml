@@ -33,6 +33,9 @@ api = ["requests>=2.28"]
 # Audio analysis (tone effectiveness evaluation, ASR QA):
 # pip install -e .[audio]
 audio = ["scipy>=1.10"]
+# Local web UI (vorpal serve):
+# pip install -e .[web]
+web = ["fastapi>=0.100", "uvicorn>=0.20", "httpx2>=2.0"]
 
 [project.scripts]
 vorpal = "vorpal.cli:main"
@@ -45,4 +48,9 @@ include = ["vorpal*"]
 testpaths = ["tests"]
 markers = [
     "integration: marks tests that require external binaries (ffmpeg/ffprobe)",
+]
+filterwarnings = [
+    # asyncio subprocess transport is GC'd after the test event loop closes;
+    # harmless in production (server runs indefinitely).
+    "ignore:Exception ignored in.*BaseSubprocessTransport:pytest.PytestUnraisableExceptionWarning",
 ]

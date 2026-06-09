@@ -273,7 +273,11 @@ feels usable and doesn't miss anything the CLI exposes.
 - **Prefer CLI:** the UI is additive (CLI unchanged), so this is just a scope
   call on whether to invest further.
 
-**Agent's assumption:** Phase 30 not yet built. Pre-registered.
+**Agent's assumption:** Phase 30 built and machine-tested. UI serves chapters
+from `book.json`, edits persist, build streams via SSE. Full browser flow
+not tested — assumed functional from unit tests; requires human spot-check.
+
+Run: `pip install -e '.[web]'` then `vorpal serve <book.pdf>`.
 
 **Outcome (fill in when done):** …
 

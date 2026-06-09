@@ -195,6 +195,20 @@ def build_parser() -> argparse.ArgumentParser:
     voices_cmd.add_argument("--text", default=None,
                             help="Custom text for the audition clip (default: built-in excerpt)")
 
+    serve = sub.add_parser(
+        "serve",
+        help="Start a local web UI for book review and build (Phase 30)",
+    )
+    serve.add_argument("input", help="Input file (PDF, EPUB, or TXT)")
+    serve.add_argument("--output", default=None,
+                       help="Workdir stem if it differs from the input file name")
+    serve.add_argument("--host", default="127.0.0.1",
+                       help="Host to bind to (default: 127.0.0.1)")
+    serve.add_argument("--port", type=int, default=7654,
+                       help="Port to listen on (default: 7654)")
+    serve.add_argument("--no-browser", action="store_true", dest="no_browser",
+                       help="Don't open a browser window automatically")
+
     return parser
 
 
@@ -1200,6 +1214,24 @@ def main(argv=None) -> None:
         cmd_review(args)
     elif args.command == "voices":
         cmd_voices(args)
+    elif args.command == "serve":
+        cmd_serve(args)
+
+
+def cmd_serve(args) -> None:
+    from .serve import start_server
+    input_path = Path(args.input)
+    if not input_path.exists():
+        sys.exit(f"ERROR: File not found: {input_path}")
+    work_stem = args.output or input_path.stem
+    work_dir = Path(f"{work_stem}_workdir")
+    start_server(
+        input_path=input_path,
+        work_dir=work_dir,
+        host=args.host,
+        port=args.port,
+        open_browser=not args.no_browser,
+    )
 
 
 if __name__ == "__main__":

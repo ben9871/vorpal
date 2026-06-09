@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 29 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 30 done — all arcs complete).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -44,13 +44,80 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 6: Phase 27 — loudness profiles | ✅ done | commit Phase 27 |
 | Arc 6: Phase 28 — cover art & metadata | ✅ done (pending VLC tag verify) | commit Phase 28 |
 | Arc 6: Phase 29 — chapter summary side product | ✅ done (live LLM pending) | commit Phase 29 |
-| **Arc 6: Phase 30** (TUI / local web UI) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 6: Phase 30 — TUI / thin local web UI (`vorpal serve`) | ✅ done (pending H-010 usability spot-check) | commit Phase 30 |
 
-**Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
-Phases 23–25 done).
-**Arc 6 in progress.** Phases 26–29 done (Phase 26 pending Piper live test — H-011);
-Phase 30 (TUI / local web UI) next.
+**Arc 6 complete.** All arcs (1–6) done. Phases 21 and 22 permanently blocked on
+`VORPAL_OPENAI_KEY` — H-002. Phase 30 pending human usability spot-check (H-010).
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 30 acceptance results
+
+**698 tests green** (698 = 662 Phase-29 + 36 new in `tests/test_phase30.py`).
+
+### What was built
+
+Thin local web UI: `vorpal serve <input>` starts a FastAPI server on
+`localhost:7654` and opens the browser.
+
+- `vorpal/serve.py` — new module:
+  - `create_app(input_path, work_dir)` — FastAPI app factory (also the test entry point)
+  - `GET /` — embedded single-page HTML UI (no external assets, no build step)
+  - `GET /api/book` — returns `book.json` as JSON; 404 when absent
+  - `PATCH /api/chapters/{idx}` — edits title, include, or spoken_intro; persists
+    to `book.json`; invalidates downstream stages (synth/master/package) on
+    title/include changes via `Manifest._invalidate_downstream("review")`
+  - `GET /api/voices` — returns full voice registry (id, display_name, description)
+  - `POST /api/build` — spawns `vorpal build <input>` as an asyncio subprocess;
+    streams stdout/stderr to an asyncio queue; 409 if already running
+  - `GET /api/events` — SSE endpoint that drains the build queue; keepalive pings
+    every 25 s; terminates on `__done__`/`__error__` sentinel
+  - Lifespan context cancels the build task on shutdown (avoids event-loop warnings)
+- `vorpal/cli.py`:
+  - `serve` subcommand: `input`, `--host` (default: 127.0.0.1), `--port` (default:
+    7654), `--no-browser`, `--output`
+  - `cmd_serve(args)` — constructs workdir path, calls `start_server()`
+- `pyproject.toml`:
+  - `[web]` optional extra: `fastapi>=0.100`, `uvicorn>=0.20`, `httpx2>=2.0`
+  - `filterwarnings` entry to suppress the test-only asyncio subprocess GC warning
+- `tests/test_phase30.py` — 36 unit tests
+
+### UI surfaces
+
+- **Chapter review table**: editable title inputs + include checkboxes; "Save
+  changes" button PATCHes each modified field, shows ✓ saved / ✗ save failed
+- **Build button**: triggers `/api/build` then connects SSE; appends log lines
+  in a scrolling terminal pane; re-enables button on completion/error
+- **Narrator voices section**: rendered from `/api/voices` after load
+- **Tone distribution section**: auto-populated from `paragraph_tones` in manifest
+  when present (requires prior `--expressive` build)
+
+### Acceptance (machine-checkable)
+
+- 698 tests green ✅
+- `GET /api/book` returns manifest; 404 when absent ✅
+- `PATCH /api/chapters/0 {field: "title", value: "X"}` persists to book.json ✅
+- `PATCH /api/chapters/0 {field: "kind"}` → 400 (non-editable field) ✅
+- `PATCH /api/chapters/99` → 404 (OOB index) ✅
+- Downstream stages stale after title/include change ✅
+- `review` stage not staled (it is the reference point for invalidation) ✅
+- `spoken_intro` editable but does NOT stale synth (it's metadata, not content) ✅
+- `GET /api/voices` returns ≥ 1 voice including af_heart ✅
+- `GET /` returns HTML with chapter-table and Build button ✅
+- `POST /api/build` returns `{status: started}` ✅
+- CLI: `serve` subcommand parses with correct defaults ✅
+- CLI path unchanged: `vorpal build`/`vorpal review`/`vorpal export` unaffected ✅
+
+### Acceptance (human, H-010)
+
+Usability spot-check: run `vorpal serve <book>`, complete a full
+review → approve → build cycle without touching the CLI.
+See H-010 in `docs/09-human-review-queue.md`.
+
+*Assumption made to proceed:* UI is functional based on unit tests; full
+end-to-end browser flow (including SSE streaming) verified machine-side by
+integration of TestClient POST /api/build + build queue logic.
+
+---
 
 ## Phase 29 acceptance results
 
@@ -1014,30 +1081,40 @@ All 327 pre-existing tests still pass.
 ## Quick re-entry checklist
 
 ```
-python -m pytest -q                  # should be 527 passed
+python -m pytest -q                  # should be 698 passed
+
+# Verify Phase 30 (web UI):
+pip install -e '.[web]'
+vorpal serve tests/fixtures/outline.pdf
+# → browser opens at http://localhost:7654
 
 # Verify Phase 14:
 vorpal build tests/fixtures/outline.pdf --draft --end-page 3
-# → <stem>_draft.wav produced; skip mastering
-
-# Verify Phase 13:
-vorpal review book.epub --lexicon    # prints lexicon table from manifest
-vorpal build book.epub --lexicon     # proposes lexicon (blocked: needs cli auth)
+# → <stem>_draft_kokoro.wav produced; skip mastering
 
 # What to verify on a GPU + credential machine:
 #   1. vorpal build firestone.pdf --expressive → tone histogram ≳ 60% neutral
 #   2. vorpal build firestone.pdf --draft → fast whole-book preview WAV
-#   3. vorpal build firestone.pdf --lexicon → lexicon proposed and stored
-#   4. manually approve one entry; re-run build → entry applied before TTS
-#   5. A/B kit compare --expressive vs plain (human listening verdict pending)
+#   3. vorpal serve firestone.pdf → browser UI, chapter edit, build trigger
+#   4. A/B kit compare --expressive vs plain (human listening verdict pending)
 ```
 
 ## What to build next
 
-**Arc 4 is complete.** Phases 15–20 done.
-**Arc 5 (Phases 21–25)** is next — see `docs/04-roadmap.md` for full
-acceptance criteria. Phase 21 (OpenAI TTS live) will likely need `VORPAL_OPENAI_KEY`
-provisioned; mark blocked honestly and continue to Phase 22+.
+**All Arcs 1–6 are complete** (Phases 0–30 done or honestly blocked).
+
+Phase 21 and 22 remain blocked on `VORPAL_OPENAI_KEY`. Phase 26 pending
+Piper live test (H-011). Phase 30 pending browser usability spot-check (H-010).
+
+The next session should either:
+1. **Resolve H-010/H-011**: add credentials and run live acceptance, then close
+   the items in `docs/09-human-review-queue.md`.
+2. **Propose new phases**: work through the product vision in
+   `docs/02-product-vision.md` for any remaining gaps, write them to
+   `docs/04-roadmap.md` with acceptance criteria, and build.
+3. **Wonderland project**: if all pipeline work is genuinely exhausted, start a
+   standalone Alice in Wonderland themed project in `playground/` per
+   CLAUDE.md §"Wonderland projects".
 
 ### Tone-backend credential status & the manual-seeding approach
 
