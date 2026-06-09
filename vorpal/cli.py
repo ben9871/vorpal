@@ -106,6 +106,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Skip mastering: emit a single concatenated preview WAV "
                             "at <stem>_draft.wav instead of building the .m4b; "
                             "10x faster for iteration on chapter/voice/tone settings")
+    build.add_argument("--profile", choices=["headphones", "car", "speaker"],
+                       default="headphones", dest="profile",
+                       help="Listening-target loudness profile (default: headphones). "
+                            "headphones: −18 LUFS (default). "
+                            "car: −16 LUFS, tighter compression for noisy environments. "
+                            "speaker: −20 LUFS, wider dynamics for hi-fi speakers. "
+                            "Profile affects mastering only; synthesis cache is unchanged.")
     build.add_argument("--footnotes", choices=["none", "inline", "chapter"],
                        default="none", dest="footnotes",
                        help="Footnote narration mode (default: none — footnotes silent). "
@@ -388,6 +395,11 @@ def cmd_build(args) -> None:
     # and so that changing a blend recipe correctly invalidates cached audio.
     manifest.data["settings"]["voice_id"] = voice_entry.id
     manifest.data["settings"]["voice_params"] = voice_entry.params
+    # Store resolved loudness profile; only affects mastering, not synthesis cache.
+    from .profiles import get_profile
+    _profile = get_profile(getattr(args, "profile", "headphones"))
+    manifest.data["settings"]["profile"] = _profile.name
+    manifest.data["settings"]["target_lufs"] = _profile.target_lufs
     manifest.save()
 
     # ── Optional: tone tagging (--expressive) ────────────
@@ -522,7 +534,11 @@ def cmd_build(args) -> None:
                                    engine_label=_draft_engine)
     else:
         settings = manifest.settings
-        target_lufs = float(settings.get("target_lufs", -18.0))
+        _profile_name = settings.get("profile", "headphones")
+        _active_profile = get_profile(_profile_name)
+        target_lufs = _active_profile.target_lufs
+        target_lra  = _active_profile.target_lra
+        target_tp   = _active_profile.target_tp
         silence_ms  = int(settings.get("inter_chapter_silence_ms", 1500))
         aac_bitrate = str(settings.get("aac_bitrate", "64k"))
 
@@ -532,6 +548,8 @@ def cmd_build(args) -> None:
                 title=title,
                 author=author,
                 target_lufs=target_lufs,
+                target_lra=target_lra,
+                target_tp=target_tp,
                 inter_chapter_silence_ms=silence_ms,
                 aac_bitrate=aac_bitrate,
                 pdf_path=pdf_path_for_cover,

@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 26 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 27 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -41,13 +41,50 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 5: Phase 24 — dialogue-aware delivery | ✅ done | commit Phase 24 |
 | Arc 5: Phase 25 — footnote narration mode | ✅ done | commit Phase 25 |
 | Arc 6: Phase 26 — Piper draft engine | ✅ done (pending live Piper test) | commit Phase 26 — see H-011 |
-| **Arc 6: Phase 27** (loudness profiles) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 6: Phase 27 — loudness profiles | ✅ done | commit Phase 27 |
+| **Arc 6: Phase 28** (cover art & metadata) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
 Phases 23–25 done).
-**Arc 6 in progress.** Phase 26 done (pending human Piper live test — H-010);
-Phase 27 (loudness profiles) next.
+**Arc 6 in progress.** Phases 26–27 done (Phase 26 pending human Piper live test — H-011);
+Phase 28 (cover art & metadata) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 27 acceptance results
+
+**623 tests green** (623 = 603 Phase-26 + 20 new in `tests/test_phase27.py`).
+
+### What was built
+
+Listening-target loudness profiles via `--profile {headphones,car,speaker}`.
+
+- `vorpal/profiles.py` — `PROFILES` dict, `LoudnessProfile` namedtuple, `get_profile()`:
+  - `headphones`: −18 LUFS, LRA=11 (default — unchanged from pre-Phase-27)
+  - `car`: −16 LUFS, LRA=8 (louder, tighter compression for noisy environments)
+  - `speaker`: −20 LUFS, LRA=15 (quieter, wide dynamics for hi-fi speakers)
+- `vorpal/cli.py`:
+  - `--profile` flag added; profile stored in `manifest.settings.profile` and
+    `manifest.settings.target_lufs` before mastering
+  - `compile_m4b` called with per-profile `target_lufs`, `target_lra`, `target_tp`
+- `vorpal/master.py`:
+  - `compile_m4b` now accepts `target_lra` and `target_tp` parameters
+  - `_master_cache_hit` / `_master_cache_write` include `target_lra` in the
+    cache key so switching profiles correctly invalidates the mastering cache
+    (synthesis cache is unaffected — TTS keys do not include profile)
+- `tests/test_phase27.py` — 20 unit tests
+
+### Acceptance
+
+- 623 tests green ✅
+- Default build (no `--profile`) uses headphones preset (−18 LUFS) — unchanged ✅
+- `car` is louder than `headphones`; `speaker` is quieter ✅
+- `car` has tighter LRA compression than `headphones` ✅
+- Profile mismatch (different LRA) invalidates mastering cache ✅
+- Old cache files (no `target_lra` field) still work at default LRA ✅
+- `compile_m4b` accepts `target_lra`/`target_tp` ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 26 acceptance results
 

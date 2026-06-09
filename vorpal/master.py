@@ -386,7 +386,8 @@ def _master_cache_path(m4a_path: Path) -> Path:
 
 
 def _master_cache_hit(m4a_path: Path, wav_sha: str,
-                      target_lufs: float, aac_bitrate: str) -> Optional[float]:
+                      target_lufs: float, aac_bitrate: str,
+                      target_lra: float = 11.0) -> Optional[float]:
     """Return cached output_i LUFS if the M4A is fresh, else None."""
     if not m4a_path.exists():
         return None
@@ -397,6 +398,7 @@ def _master_cache_hit(m4a_path: Path, wav_sha: str,
         data = json.loads(cache_path.read_text(encoding="utf-8"))
         if (data.get("wav_sha256") == wav_sha
                 and data.get("target_lufs") == target_lufs
+                and data.get("target_lra", 11.0) == target_lra
                 and data.get("aac_bitrate") == aac_bitrate):
             return float(data["output_i"])
     except Exception:
@@ -405,10 +407,12 @@ def _master_cache_hit(m4a_path: Path, wav_sha: str,
 
 
 def _master_cache_write(m4a_path: Path, wav_sha: str,
-                        target_lufs: float, aac_bitrate: str, output_i: float) -> None:
+                        target_lufs: float, aac_bitrate: str, output_i: float,
+                        target_lra: float = 11.0) -> None:
     cache_path = _master_cache_path(m4a_path)
     cache_path.write_text(
         json.dumps({"wav_sha256": wav_sha, "target_lufs": target_lufs,
+                    "target_lra": target_lra,
                     "aac_bitrate": aac_bitrate, "output_i": output_i}),
         encoding="utf-8",
     )
@@ -473,6 +477,8 @@ def compile_m4b(
     title: str = "",
     author: str = "",
     target_lufs: float = -18.0,
+    target_lra: float = 11.0,
+    target_tp: float = -1.5,
     inter_chapter_silence_ms: int = 1500,
     aac_bitrate: str = "64k",
     pdf_path: Optional[Path] = None,
@@ -516,7 +522,8 @@ def compile_m4b(
 
         # Check mastering cache: if WAV unchanged and settings match, reuse M4A
         wav_sha = _wav_sha256(ch["wav"])
-        cached_i = _master_cache_hit(out_m4a, wav_sha, target_lufs, aac_bitrate)
+        cached_i = _master_cache_hit(out_m4a, wav_sha, target_lufs, aac_bitrate,
+                                       target_lra=target_lra)
         if cached_i is not None:
             within_gate = abs(cached_i - target_lufs) <= 1.0
             gate_str = "PASS" if within_gate else "FAIL"
@@ -530,11 +537,13 @@ def compile_m4b(
         else:
             lr = loudnorm_chapter(
                 ch["wav"], out_m4a, ch["title"], ffmpeg,
-                target_lufs=target_lufs, aac_bitrate=aac_bitrate,
+                target_lufs=target_lufs, target_tp=target_tp,
+                target_lra=target_lra, aac_bitrate=aac_bitrate,
             )
             gate_str = "PASS" if lr.within_gate else "FAIL"
             print(f"  {lr.input_i:+.1f} → {lr.output_i:+.1f} LUFS  [{gate_str}]")
-            _master_cache_write(out_m4a, wav_sha, target_lufs, aac_bitrate, lr.output_i)
+            _master_cache_write(out_m4a, wav_sha, target_lufs, aac_bitrate, lr.output_i,
+                                target_lra=target_lra)
             loudness_results.append(lr)
 
         chapter_m4as.append(out_m4a)
