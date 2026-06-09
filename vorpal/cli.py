@@ -252,6 +252,45 @@ def build_parser() -> argparse.ArgumentParser:
              "protagonist, af_heart for a female one)",
     )
 
+    play_cmd = sub.add_parser(
+        "play",
+        help="Build a multi-voice audiobook from a stage play (Arc 7)",
+    )
+    play_cmd.add_argument(
+        "input",
+        help="Play text (.txt, Gutenberg stripped) or parsed play.json",
+    )
+    play_cmd.add_argument("--chapters", choices=["act", "scene"],
+                          default="act",
+                          help="One chapter per act (default) or per scene")
+    play_cmd.add_argument("--stage-directions",
+                          choices=["skip", "narrator"], default="skip",
+                          dest="stage_directions",
+                          help="Drop stage directions (default) or narrate "
+                               "them with the narrator voice")
+    play_cmd.add_argument("--cast-override", default=None,
+                          dest="cast_override",
+                          help='JSON file {"CHARACTER": "voice_id"} '
+                               "overriding assignments")
+    play_cmd.add_argument("--voice", default="bm_lewis",
+                          help="Narrator voice for stage directions "
+                               "(default: bm_lewis)")
+    play_cmd.add_argument("--best-voice", default=None, dest="best_voice",
+                          help="Voice id for the protagonist")
+    play_cmd.add_argument("--output", default=None,
+                          help="Output stem (default: input file stem)")
+    play_cmd.add_argument("--draft", action="store_true",
+                          help="Skip mastering; emit a single concatenated WAV")
+    play_cmd.add_argument("--profile",
+                          choices=["headphones", "car", "speaker"],
+                          default="headphones",
+                          help="Loudness profile for mastering")
+    play_cmd.add_argument("--approve", action="store_true",
+                          help="Approve the cast sheet and synthesize")
+    play_cmd.add_argument("--no-tone-hints", action="store_true",
+                          dest="no_tone_hints",
+                          help="Ignore emotion hints from stage directions")
+
     return parser
 
 
@@ -1263,6 +1302,51 @@ def main(argv=None) -> None:
         cmd_fetch_play(args)
     elif args.command == "cast":
         cmd_cast(args)
+    elif args.command == "play":
+        cmd_play(args)
+
+
+def cmd_play(args) -> None:
+    import json as _json
+
+    from .play.pipeline import build_play, format_review_surface
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        sys.exit(f"ERROR: File not found: {input_path}")
+
+    cast_override = None
+    if args.cast_override:
+        override_path = Path(args.cast_override)
+        if not override_path.exists():
+            sys.exit(f"ERROR: override file not found: {override_path}")
+        cast_override = _json.loads(override_path.read_text(encoding="utf-8"))
+
+    try:
+        result = build_play(
+            input_path,
+            output_stem=args.output,
+            chapters_mode=args.chapters,
+            stage_directions=args.stage_directions,
+            cast_override=cast_override,
+            narrator_voice=args.voice,
+            best_voice=args.best_voice,
+            approve=args.approve,
+            draft=args.draft,
+            profile=args.profile,
+            use_tone_hints=not args.no_tone_hints,
+        )
+    except (ValueError, RuntimeError) as e:
+        sys.exit(f"ERROR: {e}")
+
+    if result["status"] == "review":
+        print(format_review_surface(result))
+        sys.exit(0)
+
+    print("\n" + "=" * 58)
+    print(f"  Done!  ->  {result['output']}")
+    print(f"  Work files: {result['work_dir']}/")
+    print("=" * 58)
 
 
 def cmd_cast(args) -> None:

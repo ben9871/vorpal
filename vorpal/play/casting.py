@@ -108,15 +108,20 @@ def _needs_unique_voice(character) -> bool:
     )
 
 
-def _pick_unique(pools: _Pools, gender: str, used: set, avoid: set) -> Optional[str]:
+def _pick_unique(pools: _Pools, gender: str, used: set, avoid: set,
+                 gender_only: bool = False) -> Optional[str]:
     """First unused voice from the gender pool, then from any pool.
 
     ``avoid`` (e.g. the narrator voice) is skipped while alternatives remain.
+    ``gender_only=True`` never crosses gender pools — used for minor/cameo
+    parts, where a gender-matched shared voice beats a unique mismatched one
+    (a male ghost in a female voice is worse than two gentlemen sharing).
     """
     candidates = list(pools.pool_for(gender))
-    for vid in pools.all_ids:
-        if vid not in candidates:
-            candidates.append(vid)
+    if not gender_only:
+        for vid in pools.all_ids:
+            if vid not in candidates:
+                candidates.append(vid)
     for skip_avoided in (True, False):
         for vid in candidates:
             if vid in used:
@@ -176,9 +181,10 @@ def assign_voices(
                     f"registry exhausted"
                 )
         else:
-            # Minor/cameo: prefer an unused voice when one exists, otherwise
-            # cycle the shared gender pool.
-            vid = _pick_unique(pools, gender, used, avoid)
+            # Minor/cameo: prefer an unused gender-matched voice when one
+            # exists, otherwise cycle the shared gender pool. Never cross
+            # gender just to stay unique.
+            vid = _pick_unique(pools, gender, used, avoid, gender_only=True)
             if vid is None:
                 vid = pools.next_shared(gender)
 

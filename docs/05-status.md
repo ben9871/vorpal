@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 37 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 38 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -51,8 +51,9 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit `19897c1` |
 | Arc 7: Phase 35 — multi-voice synthesis routing | ✅ done | commit `e975a18` |
 | Arc 7: Phase 36 — act/scene chapter structure | ✅ done | commit `520342a` |
-| Arc 7: Phase 37 — tone/emotion from stage direction context | ✅ done | commit Phase 37 |
-| **Arc 7: Phase 38** — `vorpal play` end-to-end command | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 7: Phase 37 — tone/emotion from stage direction context | ✅ done | commit `8be6185` |
+| Arc 7: Phase 38 — `vorpal play` end-to-end command | ✅ done | commit Phase 38 |
+| **Arc 7: Phase 39** — cast audition mode | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
 `docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
@@ -61,6 +62,66 @@ multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
 `vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
 hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 38 acceptance results
+
+**861 tests green** (861 = 842 Phase-37 + 19 new in `tests/test_phase38.py`).
+
+### What was built
+
+`vorpal play <input>` — the end-to-end multi-voice play pipeline.
+
+- `vorpal/play/pipeline.py` — new module:
+  - `build_play(input_path, …)` — parse → extract cast → assign voices →
+    chapters → **review gate** → multi-voice synthesis → master → package.
+    Returns `{"status": "review", …}` (default) or `{"status": "built",
+    "output": Path, …}` (with `approve=True`)
+  - Review gate mirrors `vorpal build`: prints cast sheet + chapter list +
+    instructions; `cast_sheet.json` in the workdir is operator-editable and
+    survives re-runs (hand edits win; new characters get fresh assignments)
+  - `default_engine_factory()` — one `KokoroEngine` per voice **sharing a
+    single loaded Kokoro model** (a 30-character cast must not load the model
+    30×), each wrapped in `KokoroApproxEngine` so Phase 37 tone hints render
+  - `_assemble_chapter_wav` — constant-memory chapter assembly (same pattern
+    as the book pipeline)
+  - `_draft_concat` — `--draft` emits `<stem>_draft_play.wav`, no ffmpeg
+  - Workdir artifacts: `play.json`, `cast.json`, `cast_sheet.json`,
+    `audio/cache/`, `chapters/`
+- `vorpal/cli.py` — `play` subcommand: `--chapters act|scene`,
+  `--stage-directions skip|narrator`, `--cast-override`, `--voice` (narrator),
+  `--best-voice`, `--output`, `--draft`, `--profile`, `--approve`,
+  `--no-tone-hints`. (`--footnotes` from the roadmap flag list is omitted —
+  footnotes don't exist in play TXT input; deliberate deviation.)
+- `vorpal/play/casting.py` — quality fix found in the Hamlet acceptance run:
+  minor/cameo characters now **never cross gender pools just to stay unique**
+  (GHOST, m, was drawing the unused female af_sky; a gender-matched shared
+  voice beats a unique mismatched one)
+- `tests/test_phase38.py` — 19 unit tests (review gate, draft build, cache
+  round-trip, sheet persistence, overrides, tone-hint audibility via
+  MockEngine, CLI parser, `build` parser surface unchanged)
+
+### Acceptance
+
+- 861 tests green ✅
+- `vorpal play corpus/plays/hamlet.txt` runs to the review gate: full
+  35-character cast sheet + 5 act-chapters with speech counts displayed,
+  no synthesis ✅
+- Full end-to-end on a 2-act mini-play (`scratch/pocket_trial.txt`, real
+  Kokoro on GPU, `--stage-directions narrator`,
+  `--cast-override {"ALICE": "af_heart", "WHITE RABBIT": "bm_daniel"}`):
+  → `pocket_trial.m4b`, valid MP4 container, 34.6 s, 2 chapter markers
+  ("Act one" / "Act two" — spoken_form applied) ✅
+- Distinct per-character voices verified in the synthesis cache: 5 voices
+  (af_heart, bm_daniel, af_nova, am_echo, narrator bm_lewis), all keys carry
+  `_vc_<voice>` ✅
+- Tone hint end-to-end in production audio: QUEEN's "[Furiously.]" line cached
+  as `…_tense_vc_af_nova.wav` ✅
+- Loudness pipeline applied per chapter (−18 LUFS, PASS) ✅
+- `vorpal build` on a non-play file unchanged (parser surface test + full
+  suite) ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 37 acceptance results
 
