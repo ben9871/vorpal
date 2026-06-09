@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 35 — 2026-06-09
+Wrote `playground/seven_hundred_milliseconds.txt`: the router now inserts PAUSE_TURN_MS = 700 ms between speakers, and the piece claims the Dormouse lives there — in every gap between two people who are certain they are the ones speaking, sleeping and waking in that order, measured to the millisecond.
+
 ## Phase 34 — 2026-06-09
 Wrote `playground/the_trial_casting_call.py`: the trial of the Knave of Hearts arranged in Gutenberg play format and fed to the hour-old casting algorithm. It cast the WHITE RABBIT as protagonist (the herald reads the most words), made the QUEEN a cameo, and returned 'unknown' for ALICE's gender — she isn't in the table of sixty Shakespearean names, and no stage direction says 'she' near her, because she speaks for herself. Sentence first, verdict afterwards; the algorithm at least got those in the right order.
 
