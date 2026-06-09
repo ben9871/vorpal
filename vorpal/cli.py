@@ -115,6 +115,16 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Skip mastering: emit a single concatenated preview WAV "
                             "at <stem>_draft.wav instead of building the .m4b; "
                             "10x faster for iteration on chapter/voice/tone settings")
+    build.add_argument("--summaries", action="store_true",
+                       help="Generate one-paragraph chapter summaries using the LLM "
+                            "backend; stored in manifest and emitted as summaries.md. "
+                            "Never narrated; build without --summaries is unchanged.")
+    build.add_argument("--summaries-backend", choices=["cli", "api"], default="cli",
+                       dest="summaries_backend",
+                       help="Backend for chapter summaries (default: cli/subscription)")
+    build.add_argument("--summaries-model", choices=["haiku", "sonnet"], default="haiku",
+                       dest="summaries_model",
+                       help="Model for summaries (default: haiku)")
     build.add_argument("--profile", choices=["headphones", "car", "speaker"],
                        default="headphones", dest="profile",
                        help="Listening-target loudness profile (default: headphones). "
@@ -536,6 +546,57 @@ def cmd_build(args) -> None:
         outliers = [r for r in asr_results_all if r.outlier]
         print(f"  Sampled {len(asr_results_all)} chapter(s), "
               f"{len(outliers)} outlier(s) (WER > 30 %)")
+
+    # ── Optional: chapter summaries (--summaries) ────────
+    if getattr(args, "summaries", False):
+        from .summarize import summarize_chapter, generate_summaries_md
+        from .summarize import DEFAULT_MODEL as SUMM_DEFAULT_MODEL
+        summ_cache = work_dir / "summary_cache"
+        summ_model_name = getattr(args, "summaries_model", "haiku")
+        from .tone import resolve_tone_model
+        summ_model = resolve_tone_model(summ_model_name)
+        summ_backend = getattr(args, "summaries_backend", "cli")
+        n_included = len([c for c in chapters if not c["skip"]])
+        print(f"\n[4.7/5] Chapter summaries ({summ_backend}, {n_included} chapters)...")
+        summary_results = []
+        for ch in chapters:
+            if ch["skip"]:
+                continue
+            # Summaries use the original (pre-footnote-injection) body via the
+            # chapter dict; we must not leak summary text into TTS-facing text
+            body = ch.get("body", "")
+            try:
+                result = summarize_chapter(
+                    body, ch["title"], summ_cache,
+                    model=summ_model, backend=summ_backend,
+                )
+                summary_results.append(result)
+                if result.get("cache_hit"):
+                    status = "(cached)"
+                elif result.get("blocked"):
+                    status = "(blocked)"
+                else:
+                    status = "(generated)"
+                has_text = bool(result.get("summary"))
+                print(f"  {ch['title'][:50]}: {'✓' if has_text else '✗'} {status}")
+            except RuntimeError as e:
+                print(f"  WARN: Summary failed for '{ch['title']}': {e}")
+                summary_results.append({"chapter_title": ch["title"],
+                                        "summary": None, "blocked": True})
+        # Store summaries in manifest (never in TTS-facing data)
+        manifest.data["summaries"] = [
+            {"chapter_title": r["chapter_title"], "summary": r.get("summary") or ""}
+            for r in summary_results
+        ]
+        manifest.save()
+        # Emit summaries.md alongside the audiobook
+        md_path = Path(f"{output_stem}_summaries.md")
+        md_path.write_text(
+            generate_summaries_md(summary_results, title),
+            encoding="utf-8",
+        )
+        n_done = sum(1 for r in summary_results if r.get("summary"))
+        print(f"  {n_done}/{len(summary_results)} summaries generated → {md_path.name}")
 
     # ── Step 5: Mastering & packaging ─────────────────
     if getattr(args, "draft", False):

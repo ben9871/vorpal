@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 28 done).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 29 done).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -43,13 +43,50 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 6: Phase 26 — Piper draft engine | ✅ done (pending live Piper test) | commit Phase 26 — see H-011 |
 | Arc 6: Phase 27 — loudness profiles | ✅ done | commit Phase 27 |
 | Arc 6: Phase 28 — cover art & metadata | ✅ done (pending VLC tag verify) | commit Phase 28 |
-| **Arc 6: Phase 29** (chapter summaries) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
+| Arc 6: Phase 29 — chapter summary side product | ✅ done (live LLM pending) | commit Phase 29 |
+| **Arc 6: Phase 30** (TUI / local web UI) | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
 **Arc 5 complete** (Phases 21 and 22 blocked on `VORPAL_OPENAI_KEY` — H-002;
 Phases 23–25 done).
-**Arc 6 in progress.** Phases 26–28 done (Phase 26 pending human Piper live test — H-011);
-Phase 29 (chapter summaries) next.
+**Arc 6 in progress.** Phases 26–29 done (Phase 26 pending Piper live test — H-011);
+Phase 30 (TUI / local web UI) next.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 29 acceptance results
+
+**662 tests green** (662 = 641 Phase-28 + 21 new in `tests/test_phase29.py`).
+
+### What was built
+
+Chapter summary side product: `--summaries` generates one-paragraph summaries
+per chapter, stored in the manifest and emitted as `<stem>_summaries.md`.
+
+- `vorpal/summarize.py` — new module:
+  - `summarize_chapter()`: cache-first, then CLI/API LLM call; returns `blocked=True`
+    when LLM unavailable (empty body, no credentials, subprocess fail)
+  - `inject_manual_summary()`: manual-seeding protocol — writes hand-crafted
+    summary to cache; pipeline then reads it as a normal cache hit
+  - `generate_summaries_md()`: formats summaries.md with heading and separator;
+    silently omits `None` summaries; fallback text when all blocked
+  - Cache key: `{text_hash}_{model}_{backend}_{PROMPT_VERSION}`
+- `vorpal/cli.py`:
+  - `--summaries`, `--summaries-backend`, `--summaries-model` flags
+  - Summaries step runs between ASR and mastering; never injects into TTS text
+  - Stores in `manifest.data["summaries"]`; emits `{stem}_summaries.md`
+- `tests/test_phase29.py` — 21 unit tests
+
+### Acceptance
+
+- 662 tests green ✅
+- Cache round-trip: second call returns `cache_hit=True` ✅
+- `inject_manual_summary` → `summarize_chapter` returns injected text ✅
+- Empty body returns `blocked=True` ✅
+- Summary text does not appear in TTS chunk text ✅
+- Build without `--summaries` unchanged ✅
+- Live LLM calls (blocked: no credentials in container) — use manual seeding ✅
+- `--summaries` flag defaults to False ✅
+
+---
 
 ## Phase 28 acceptance results
 
