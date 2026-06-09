@@ -224,6 +224,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory to save the stripped play text (default: corpus/plays)",
     )
 
+    cast_cmd = sub.add_parser(
+        "cast",
+        help="Print the voice cast sheet for a play (Arc 7)",
+    )
+    cast_cmd.add_argument(
+        "input",
+        help="Play text (.txt, Gutenberg stripped) or parsed play.json",
+    )
+    cast_cmd.add_argument(
+        "--cast-override",
+        default=None,
+        dest="cast_override",
+        help="JSON file mapping character → voice id, "
+             'e.g. {"HAMLET": "bm_daniel"}',
+    )
+    cast_cmd.add_argument(
+        "--narrator",
+        default="bm_lewis",
+        help="Narrator voice for stage directions (default: bm_lewis)",
+    )
+    cast_cmd.add_argument(
+        "--best-voice",
+        default=None,
+        dest="best_voice",
+        help="Voice id for the protagonist (default: bm_george for a male "
+             "protagonist, af_heart for a female one)",
+    )
+
     return parser
 
 
@@ -1233,6 +1261,57 @@ def main(argv=None) -> None:
         cmd_serve(args)
     elif args.command == "fetch-play":
         cmd_fetch_play(args)
+    elif args.command == "cast":
+        cmd_cast(args)
+
+
+def cmd_cast(args) -> None:
+    import json as _json
+
+    from .play.casting import (
+        apply_overrides, assign_voices, castable_voices, format_cast_table,
+    )
+    from .play.characters import extract_cast
+    from .play.models import PlayDoc
+    from .play.parser import parse_play
+    from .tts.voices import VOICE_REGISTRY
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        sys.exit(f"ERROR: File not found: {input_path}")
+
+    if input_path.suffix.lower() == ".json":
+        play = PlayDoc.from_dict(
+            _json.loads(input_path.read_text(encoding="utf-8")))
+    else:
+        play = parse_play(input_path.read_text(encoding="utf-8"))
+
+    cast = extract_cast(play)
+    if not cast:
+        sys.exit("ERROR: no speakers found — is this a play?")
+
+    voices = castable_voices(VOICE_REGISTRY)
+    if args.narrator not in VOICE_REGISTRY:
+        sys.exit(f"ERROR: unknown narrator voice {args.narrator!r}")
+
+    sheet = assign_voices(
+        cast, voices,
+        best_voice=args.best_voice,
+        narrator_voice=args.narrator,
+    )
+
+    if args.cast_override:
+        override_path = Path(args.cast_override)
+        if not override_path.exists():
+            sys.exit(f"ERROR: override file not found: {override_path}")
+        overrides = _json.loads(override_path.read_text(encoding="utf-8"))
+        try:
+            apply_overrides(sheet, overrides, voices)
+        except ValueError as e:
+            sys.exit(f"ERROR: {e}")
+
+    print(f"\nCast sheet — {play.title or input_path.stem}")
+    print(format_cast_table(cast, sheet, voices))
 
 
 def cmd_fetch_play(args) -> None:

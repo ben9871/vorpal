@@ -30,6 +30,7 @@ class VoiceEntry:
     params: dict                # {"voice": "af_heart"} or {"blend": {...}, "speed": N}
     description: str            # one-line character description
     dialogue_style: Optional[str] = None  # None = no dialogue shift; "subtle" = 3% slower
+    gender: Optional[str] = None  # "m" | "f" | None (unknown) — used by play casting
 
 
 def _params_cache_key(params: dict) -> str:
@@ -55,6 +56,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "af_heart"},
         description="Warm, expressive American female — the default narrator",
+        gender="f",
     ),
     "af_nova": VoiceEntry(
         id="af_nova",
@@ -62,6 +64,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "af_nova"},
         description="Clear, bright American female",
+        gender="f",
     ),
     "af_sky": VoiceEntry(
         id="af_sky",
@@ -69,6 +72,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "af_sky"},
         description="Lighter, airier American female",
+        gender="f",
     ),
     "am_echo": VoiceEntry(
         id="am_echo",
@@ -76,6 +80,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "am_echo"},
         description="Resonant American male",
+        gender="m",
     ),
     "am_michael": VoiceEntry(
         id="am_michael",
@@ -83,6 +88,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "am_michael"},
         description="Steady, neutral American male",
+        gender="m",
     ),
     "am_fenrir": VoiceEntry(
         id="am_fenrir",
@@ -90,6 +96,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "am_fenrir"},
         description="Deep, commanding American male",
+        gender="m",
     ),
     "bf_emma": VoiceEntry(
         id="bf_emma",
@@ -97,6 +104,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "bf_emma"},
         description="Clear, measured British female",
+        gender="f",
     ),
     "bm_george": VoiceEntry(
         id="bm_george",
@@ -104,6 +112,23 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"voice": "bm_george"},
         description="Distinguished British male",
+        gender="m",
+    ),
+    "bm_lewis": VoiceEntry(
+        id="bm_lewis",
+        display_name="Lewis",
+        engine="kokoro",
+        params={"voice": "bm_lewis"},
+        description="Even, unhurried British male — the play narrator default",
+        gender="m",
+    ),
+    "bm_daniel": VoiceEntry(
+        id="bm_daniel",
+        display_name="Daniel",
+        engine="kokoro",
+        params={"voice": "bm_daniel"},
+        description="Younger, lighter British male",
+        gender="m",
     ),
 
     # ── Kokoro blends — curated narrators made from voice mixes ──────────
@@ -113,6 +138,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"blend": {"af_heart": 0.65, "af_nova": 0.35}},
         description="Heart's warmth softened with Nova's clarity (female blend)",
+        gender="f",
     ),
     "blend_deep_steady": VoiceEntry(
         id="blend_deep_steady",
@@ -120,6 +146,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"blend": {"am_fenrir": 0.55, "am_michael": 0.45}},
         description="Fenrir's depth grounded by Michael's steadiness (male blend)",
+        gender="m",
     ),
     "blend_transatlantic": VoiceEntry(
         id="blend_transatlantic",
@@ -127,6 +154,7 @@ VOICE_REGISTRY: dict = {
         engine="kokoro",
         params={"blend": {"af_heart": 0.5, "bf_emma": 0.5}},
         description="Equal blend of American Heart and British Emma",
+        gender="f",
     ),
 
     # ── OpenAI TTS voices (via APIEngine — needs VORPAL_OPENAI_KEY) ───────
@@ -143,6 +171,7 @@ VOICE_REGISTRY: dict = {
         engine="openai",
         params={"voice": "echo"},
         description="Resonant male — OpenAI TTS (requires VORPAL_OPENAI_KEY)",
+        gender="m",
     ),
     "oa_nova": VoiceEntry(
         id="oa_nova",
@@ -150,6 +179,7 @@ VOICE_REGISTRY: dict = {
         engine="openai",
         params={"voice": "nova"},
         description="Clear female — OpenAI TTS (requires VORPAL_OPENAI_KEY)",
+        gender="f",
     ),
 }
 

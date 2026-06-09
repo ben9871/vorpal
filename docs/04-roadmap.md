@@ -359,10 +359,36 @@ ends with a go/no-go + proposed integration plan.
 queue needs more depth. Same protocol as Arc 3: numeric order, one
 `Phase N: …` commit + status update per phase, host-verified, reversible, no
 spend / no remote push, mark blocked/human honestly, stop-clean-with-a-proposal
-if you run dry. Arc 4 **opens by resolving the `cli` tone-backend auth** —
-`claude -p` inside the container wanted a `/login` (HANDOFF-NOTES §1); if it
-needs interactive login the agent can't do unsupervised, mark it `(human)` and
-proceed. Order: 15 → 16 → 17 → 18 → 19 → 20.)*
+if you run dry. Order: 15 → 16 → 17 → 18 → 19 → 20.)*
+
+### Tone-backend credential status — manual-seeding protocol (Arc 4)
+
+`VORPAL_ANTHROPIC_KEY` has zero credits and `claude -p` is not authenticated
+inside the container. For **any phase that exercises the LLM tone/repair
+backend** (currently Phase 17), the agent must use the **manual-seeding
+approach** rather than blocking:
+
+1. Find actual low-confidence blocks in the Firestone `pages.jsonl` (real data,
+   not synthetic).
+2. Write plausible repair proposals by hand for 1–2 of them — the same JSON
+   structure the LLM would return.
+3. Inject them into the manifest and run the full downstream workflow:
+   diff-surfacing in review, approve/reject round-trip, apply path in
+   normalization.
+4. Document clearly: *"LLM proposal step was manually seeded — logic and
+   workflow verified; live call blocked on credentials."*
+
+**Why this approach:** the goal is to confirm that the code paths, data
+structures, review surface, and normalization application are all correct
+*before* credentials are wired in. When the token is added, only the source
+of the proposals changes — everything downstream is already proven. A manually-
+seeded green is honest (and useful); a blocked phase that does nothing is not.
+This same pattern was used successfully in Phase 8 (tone cache pre-populated
+manually) and Phase 13 (lexicon round-trip tested without live LLM call).
+
+The `claude -p` `/login` step: if it requires interactive login the agent
+cannot complete it unsupervised — mark it `(human: claude -p needs /login)`
+in the status doc and proceed. Do not let it stall Phase 15.
 
 ## Phase 15 — Parallel page OCR *(biggest wall-clock win)*
 
@@ -398,6 +424,15 @@ equivalent; serial path untouched on CPU.
 proposals surfaced in review (not auto-applied); approve/reject round-trips
 through the manifest; build without `--repair` unchanged; logic unit-tested
 with a mock backend.
+
+*Credential note (Arc 4):* `cli` backend needs `/login`; `api` backend needs
+credits. Use the **manual-seeding protocol** (see Arc 4 intro above): take 1–2
+actual low-confidence blocks from the Firestone `pages.jsonl`, write plausible
+repairs by hand, inject them, and run the full approve→apply path. This proves
+the diff-surface, review round-trip, and normalization application. Mark the
+live LLM proposal call as `(blocked: credentials — manual seed used for
+workflow verification)`. When credentials arrive, the only change is replacing
+the seed with a real LLM call; all downstream logic is already verified.
 
 ## Phase 18 — Library / batch mode *(folder → shelf)*
 
@@ -437,31 +472,558 @@ committed regression test; `06-corpus.md` updated.
 
 ---
 
-## Far future (thought about, deliberately not planned)
+# Arc 5 — Voice depth & the expressive tier proven *(Phases 21–25)*
 
-- **A visual layer / exe.** Bottom of the priority list by decision
-  (2026-06-07): we need a product before packaging. When its day comes, the
-  UI-worthy moments are already CLI checkpoints — review-table editing, voice
-  audition, tone-map inspection, build progress — which suggests a thin local
-  web UI (or TUI) over the manifest, then perhaps a PyInstaller exe. Nothing
-  in the architecture blocks this; nothing in it is being built now.
+*(Queued 2026-06-08. Arc 4 builds scale and product shape; Arc 5 completes the
+expressive narration story that Arc 2 started. The two credential gaps that
+have blocked live acceptance since Phase 7 (OpenAI TTS key, Anthropic API
+credits / `claude -p` auth) are assumed resolved before Arc 5 begins — or each
+blocked item is marked honestly and skipped. Same protocol: numeric order, one
+commit per phase, status-doc update, no spend beyond what's explicitly
+authorized per phase, no remote push.)*
 
-## Post-Arc-3 candidates (explicitly deferred)
+## Phase 21 — OpenAI TTS live acceptance *(Phase 7 pending items)*
 
-In rough value order (most of the old post-Arc-2 list graduated into Arc 3):
+Phase 7 built the `APIEngine` adapter, cost machinery, and mock-engine tests,
+but every live acceptance item was blocked for lack of `VORPAL_OPENAI_KEY`. This
+phase completes it — no new code expected beyond wiring the credential.
 
-1. **Performance** — parallel page OCR (process pool), batched TTS on GPU
-   (matters more once API engines bill per request).
-2. **LLM-assisted OCR repair** — optional scalpel pass over OCR-damaged
-   passages, with the surrounding clean text as context; diff-shown,
-   review-approved (deterministic core, model-assisted edges).
-3. **Library / batch mode** — point at a directory, build a shelf overnight;
-   queue + progress over the existing content-addressed cache.
-4. **Manifest as a first-class artifact** — other renderers (clean EPUB, study
-   guide) from the same cleaned `book.json`.
+- Run a 1-chapter Firestone build via `APIEngine`: cost estimate printed before
+  synthesis, `failed: 0`, chapter audio present.
+- Pull the network mid-build; confirm abort with a resumable cache (no re-synth
+  of already-completed chunks on resume).
+- Manual-tone acoustic delta: set one chapter's chunks to `somber` in the
+  manifest; confirm f0/energy/rate measurably differ from the neutral build.
 
-*(EPUB/TXT input graduated into Phase 5; ASR QA, pronunciation lexicon, and
-draft-mode graduated into Arc 3, all on 2026-06-07. DOCX/web stay out.)*
+**Accept when:** all Phase 7 live acceptance items cleared; `(blocked)` marks
+removed from the status doc. *(Credential gate: if `VORPAL_OPENAI_KEY` still
+not provisioned, mark every item `(blocked: VORPAL_OPENAI_KEY not set)` and
+skip — do not simulate a pass.)*
+
+## Phase 22 — Tone with instruction engine *(warm/wry fixed)*
+
+The Kokoro approximation layer passed 5/7 tones on the acoustic gate (Phase 11).
+`warm` failed (5% speed shift too small to clear the 5% dur_diff threshold) and
+`wry` failed by design (no speed delta). A real instruction-based engine
+(gpt-4o-mini-tts) expresses tone through prose instructions, not speed alone,
+so both should clear.
+
+- Re-run the Phase 11 acoustic-delta gate against `APIEngine`; assert all 8
+  tones pass.
+- Regenerate the A/B kit (paired clips, tagged vs all-neutral) against the
+  instruction engine; emit to `ab_kit_v2/`.
+- Update `report.md` template to record which tones passed on which engine.
+
+**Accept when:** all 8 tones pass the acoustic gate; A/B kit re-generated;
+**(human)** blind listening verdict on the new clips. *(Blocked on Phase 21.)*
+
+## Phase 23 — StyleTTS2 voice design spike *(Phase 9b)*
+
+Follow-up to Phase 9's conditional go/no-go and the proposal in
+`docs/08-voice-training-spike.md` §8. Run this whether or not the PCA voice
+was approved — it addresses the architectural gap Kokoro has (no audio encoder)
+and extends the voice-design space beyond the existing voice manifold.
+
+- Download StyleTTS2-LibriTTS (~1.2 GB, Apache-2.0 license) to `playground/`.
+- Pick a public-domain LibriVox reader with a desired acoustic profile; use
+  StyleTTS2's encoder to extract a reference style embedding.
+- Optimize that embedding toward a target character profile (gradient descent
+  on reconstruction loss, no decoder retraining).
+- Compare output to `vorpal_narrator_v1` (Phase 9 PCA voice) on the same 248-
+  char Firestone test passage; record duration, RMS, pitch.
+- Update `docs/08-voice-training-spike.md` with real numbers, listenable
+  samples in `playground/`, and a go/no-go on registry integration.
+
+**Accept when:** spike doc updated with measured comparisons; `vorpal/` package
+untouched; no money spent; VRAM budget respected (target ≤ 80% of 6 GB);
+ends with go/no-go + proposed integration plan.
+*(Isolation: all experiment work in `playground/` — same protocol as Phase 9.)*
+
+## Phase 24 — Dialogue-aware delivery *(same narrator, subtle shift)*
+
+Detect quoted speech in chapter bodies; annotate the corresponding chunks;
+apply a conservative delivery adjustment. The one-narrator contract holds —
+this is tonal inflection, not dramatization.
+
+- Quoted-speech detector in `normalize.py` or a new `segment/dialogue.py`:
+  identify `"…"` spans, classify as dialogue vs narration, annotate chunks
+  with `is_dialogue: bool`.
+- `TTSEngine` adapters that support it (`APIEngine` instruction strings,
+  `KokoroApproxEngine` speed/pause) apply a subtle shift for `is_dialogue`
+  chunks. Controlled by a registry-level `dialogue_style` field; default: no
+  shift (safe upgrade for existing builds).
+- Unit tests on the detector with edge cases: nested quotes, multi-paragraph
+  dialogue, em-dash interruptions, dialogue-only chapters.
+
+**Accept when:** detector unit tests green; a Firestone chapter with quoted
+speech has `is_dialogue` chunks annotated; build without dialogue support
+byte-identical to pre-Phase-24; **(human)** listening spot-check finds the
+delivery shift natural and not jarring.
+
+## Phase 25 — Footnote narration mode *(opt-in)*
+
+Footnotes have been separated and discarded since Phase 2. Some books (heavily
+annotated academic texts) lose meaningful content that way. Add opt-in modes:
+
+- `--footnotes inline`: append each footnote after its parent chapter body,
+  preceded by a spoken delimiter ("Footnote one: …"). Footnote markers in the
+  body text are replaced with brief spoken cues ("footnote one").
+- `--footnotes chapter`: emit all footnotes as their own chapter entry
+  (`kind: footnotes`, default `include: false` in review — visible, not
+  auto-included).
+- Normalization applies to footnote text: citation markers stripped, numbers
+  spoken, same TTS normalization path as body text.
+- Unit tests on footnote formatting for both modes; default build (no flag)
+  unchanged.
+
+**Accept when:** both modes produce valid manifest entries; footnote text
+normalized and audible in the build; no content appears in TTS text without
+`--footnotes`; round-trip through review checkpoint works.
+
+---
+
+# Arc 6 — Polish & reach *(Phases 26–30)*
+
+*(Queued 2026-06-08. Arc 5 completes the expressive tier; Arc 6 is about
+quality-of-life, output richness, and the product's front door. Each phase is
+independently committable and self-contained. No new credential requirements
+beyond what Arc 5 resolved.)*
+
+## Phase 26 — Piper draft engine *(CPU-speed drafts)*
+
+`--draft` currently skips mastering but still synthesizes with Kokoro. On a
+CPU-only machine Kokoro synthesis is the bottleneck; a full Firestone draft
+still takes hours. Piper (VITS-based, very fast on CPU, lower quality) makes
+`--draft` actually fast.
+
+- `tts/piper_engine.py` implementing `TTSEngine`; Piper discovered via
+  `shutil.which('piper')` — opt-in dependency, gracefully absent.
+- `--draft` selects `PiperEngine` when Piper is on PATH; falls back to Kokoro
+  with a warning if not found (current behavior preserved).
+- Quality difference clearly documented in the build log; draft artifacts
+  labelled `_draft_piper` vs `_draft_kokoro` so they're not confused.
+- Unit test: `PiperEngine` conforms to `TTSEngine` interface; Piper-absent
+  fallback path exercised.
+
+**Accept when:** a full-book draft on CPU with Piper is markedly faster than
+Kokoro draft (record wall-clock); audio intelligible; default non-draft build
+unchanged; Piper absence degrades gracefully.
+
+## Phase 27 — Listening-target loudness profiles *(car / headphones / speaker)*
+
+The mastering stage targets a fixed −18 LUFS. Different playback contexts have
+materially different optimal targets — a car environment benefits from higher
+average loudness and slightly more compression; headphones prefer more dynamic
+range.
+
+- Named presets behind a `--profile` flag: `headphones` (−18 LUFS, current
+  default), `car` (−16 LUFS, slightly tighter compression), `speaker`
+  (−20 LUFS, more dynamic). Stored in `manifest.settings.profile`.
+- Changing `--profile` invalidates only the mastering stage (synthesis cache
+  untouched — the profile affects loudnorm parameters, not TTS).
+- Unit test: each preset produces the expected `target_lufs` in the manifest;
+  downstream LUFS gate uses the per-profile target, not the hard-coded −18.
+
+**Accept when:** `--profile car` builds to −16 LUFS verified via ffprobe
+loudnorm stats; synthesis cache hit (no re-synth); default (`--profile
+headphones`) unchanged.
+
+## Phase 28 — Richer cover art & metadata *(the audiobook as artifact)*
+
+Cover art is currently extracted from PDF page 1, which is often the copyright
+page on scanned books, not the cover. Metadata (narrator, year, language,
+publisher) is minimal.
+
+- Smarter cover extraction for PDFs: score candidate pages (page 1, pages 2–5)
+  by image density and title-text proximity; pick the best candidate or accept
+  `--cover <image>` override (already wired).
+- For EPUBs: read the OPF `<item properties="cover-image">` entry directly
+  instead of rendering a page.
+- Embed additional MP4/ID3v2 tags: narrator (from `--voice` registry entry
+  display name), year (`--year`), language (`--language`, default `en`),
+  publisher (`--publisher`).
+- Unit tests on cover-selection heuristic with stub pages.
+
+**Accept when:** a built M4B has correct title/author/year/narrator tags
+verifiable in VLC; EPUB cover used when available; `--cover` override still
+works; `--cover` flag documented in `vorpal build --help`.
+
+## Phase 29 — Chapter summary side product *(text-only, never narrated)*
+
+An optional `--summaries` flag that uses the LLM tone-backend to generate a
+one-paragraph summary per chapter, stored in the manifest and emitted as
+`summaries.md` alongside the audiobook. Content-fidelity contract holds: the
+summaries are never narrated, never injected into TTS text.
+
+- Cache per `(chapter_text_hash, model, prompt_version)` — same pattern as
+  `tone.py`; a book is summarised once, ever.
+- Use the **manual-seeding protocol** (Arc 4) if credentials are still absent:
+  hand-write one or two summaries, inject them, verify the manifest storage,
+  review surface, and `summaries.md` emission. Mark live calls
+  `(blocked: credentials — manual seed used)`.
+- `vorpal review` shows summaries for spot-checking; summaries are editable in
+  `book.json` like any other manifest field.
+
+**Accept when:** summaries stored in manifest and emitted to `summaries.md`;
+zero summary text appears in any TTS chunk; cache round-trip tested; build
+without `--summaries` byte-identical.
+
+## Phase 30 — TUI / thin local web UI *(the product's front door)*
+
+The "far future" item from `docs/07-ideation.md` §2e, now earned: Arc 1–5
+built a product whose real asset is a clean `book.json`. A thin local UI makes
+that manifest interactive — the same human checkpoints that exist as CLI steps
+become a UI flow.
+
+- `vorpal serve <input>` starts a local FastAPI server and opens the browser.
+- The UI reads/writes `book.json` directly — no new data model beyond what
+  already exists.
+- Surfaces: chapter review table (editable, with approve/reject), voice
+  audition (plays samples from `voices_preview/`), tone-map inspection
+  (per-chapter tone distribution), build progress (streamed via SSE).
+- Editing a chapter title or toggling `include` in the UI writes to the
+  manifest and triggers selective downstream invalidation — same as the CLI
+  review path.
+- CLI path entirely unchanged: `vorpal serve` is additive.
+
+**Accept when:** `vorpal serve` starts a local server; chapter table is
+editable and changes persist to `book.json`; a build can be triggered from
+the UI with live progress; CLI `vorpal build`/`vorpal review` unaffected.
+**(human)** usability spot-check: can complete a full review→approve→build
+cycle without touching the CLI.
+
+---
+
+---
+
+# Arc 7 — Theatrical Mode: Play Ingestion & Multi-Voice Dramatization *(Phases 31–40)*
+
+*(Queued 2026-06-09. Arc 6 completed the book pipeline; Arc 7 extends vorpal
+into a second content class: stage plays. A play is a book where the "chapters"
+are acts and scenes, the "text" is speeches attributed to named characters, and
+the "narrator" is a full cast. The manifest-driven pipeline carries over almost
+entirely — the new work is a play parser, a voice-casting layer, and a
+multi-voice synthesis router. Source: Project Gutenberg public-domain plays
+(Shakespeare and others). Download recipe: same `docs/06-corpus.md` fetch
+recipe, pointed at the Gutenberg play catalogue.)*
+
+*(All phases follow the standard unsupervised protocol: one commit per phase,
+`docs/05-status.md` updated, 09-human-review-queue.md for human items.
+Free-time Wonderland work in `playground/` between phases as usual.)*
+
+---
+
+## Phase 31 — Gutenberg play downloader + plain-text play parser
+
+The entry point for everything that follows. Plays on Project Gutenberg ship as
+plain UTF-8 `.txt` files with a standard header/footer, ALL-CAPS speaker labels,
+and square-bracket stage directions. Parse this into a structured `play.json`
+that Arc 7's subsequent phases consume.
+
+- `vorpal/play/fetcher.py`: `fetch_play(title_or_id)` — resolves a title to
+  a Gutenberg book ID (small hardcoded catalogue: Hamlet `#1524`,
+  A Midsummer Night's Dream `#1514`, Macbeth `#1533`, Twelfth Night `#1523`,
+  The Tempest `#23042`, Much Ado `#1882`), downloads with `urllib`, strips the
+  standard PG boilerplate header/footer (regex on the canonical boundary
+  strings), saves to `corpus/plays/<slug>.txt`.
+- `vorpal/play/parser.py`: `parse_play(text) → PlayDoc` — a dataclass tree:
+  `PlayDoc(title, author, acts[Act(name, scenes[Scene(name, location,
+  beats[Beat(type, speaker?, text)])])])`. Beat types: `speech`, `direction`.
+  Speaker labels detected as ALL-CAPS words followed by `.` or nothing at a
+  line start (Gutenberg Shakespeare convention). Stage directions: `[…]`
+  blocks and indented italic-substitute lines. Act/scene headers: lines
+  matching `ACT [IVX]+` / `SCENE [IVX]+`.
+- `vorpal/play/models.py`: the PlayDoc / Act / Scene / Beat dataclasses;
+  `to_dict()` / `from_dict()` for JSON round-trip.
+- Unit tests: generated mini-play fixtures (inline strings — no downloaded
+  files in pytest); assert act count, scene count, speaker set, direction
+  count for a 3-act 2-character excerpt.
+
+**Accept when:** `vorpal fetch-play hamlet` downloads and strips the PG
+Hamlet text to `corpus/plays/hamlet.txt`; `parse_play()` produces a PlayDoc
+with 5 acts, 20 scenes, and all major speakers present; unit tests green on
+small fixtures; no test requires a network call.
+
+---
+
+## Phase 32 — Character extraction + role classification
+
+From `play.json`, build `cast.json`: the character registry the casting
+algorithm (Phase 33) and the synthesis router (Phase 35) will consume.
+
+- `vorpal/play/characters.py`: `extract_cast(play_doc) → list[Character]`.
+  Each `Character`: name, `line_count`, `word_count`, `role`
+  (`protagonist | major | minor | cameo` — thresholds by word-count
+  percentile: top 1 = protagonist, top 10% = major, top 40% = minor, rest =
+  cameo), `gender_guess` (`m | f | unknown` — heuristic: pronoun scan in
+  stage directions referencing the character + a hardcoded Shakespeare
+  canonical-name gender table covering the ~60 most common names; fallback
+  `unknown`).
+- `cast.json` written to the play workdir alongside `play.json`.
+- Unit tests: Hamlet fixture → Hamlet is protagonist, Horatio/Ophelia are
+  major, First Gravedigger is minor; gender heuristic correct on the
+  hardcoded-name set.
+
+**Accept when:** `extract_cast` on the parsed Hamlet returns the correct role
+classification for at least 10 named characters; `cast.json` round-trips
+through `from_dict`; gender table covers Hamlet, Ophelia, Horatio, Gertrude,
+Laertes; unit tests green on fixtures.
+
+---
+
+## Phase 33 — Stage direction classification + emotion extraction
+
+Stage directions in Shakespeare range from scene-setting ("*Elsinore. A platform
+before the castle.*") to action ("*Exit*") to emotional cues ("*weeping*",
+"*aside*", "*in despair*"). Arc 7 uses the emotional cues as tone hints for the
+following speech; the rest are either silenced or narrated.
+
+- `vorpal/play/directions.py`: `classify_direction(text) → DirectionKind`:
+  `action | location | emotion_hint | entry_exit | song | other`.
+  Classification is rule-based: keyword vocabulary per class (no LLM).
+  `entry_exit`: contains `Enter`, `Exit`, `Exeunt`.
+  `location`: first direction of a scene, no verb, describes a place.
+  `emotion_hint`: contains words from an ~80-word vocabulary:
+  *weeping, furiously, aside, solemnly, laughing, kneeling, embracing,
+  shouting, whispering, bitterly, tenderly, in despair, in horror, joyfully*…
+  `song`: stage direction contains `Sings` or `Song`.
+  `action`: everything else with a verb.
+- `extract_emotion_hint(direction_text) → str | None`: maps to a tone-system
+  tag (`somber`, `tense`, `warm`, `wry`, `neutral`) using the vocabulary above.
+  Stored on the following `Beat` as `tone_hint`.
+- Unit tests: fixture directions correctly classified; hint extraction maps
+  "weeping" → `somber`, "furiously" → `tense`, "aside" → `wry`,
+  "tenderly" → `warm`.
+
+**Accept when:** all direction kinds classified with ≥ 90% accuracy on a
+manually labelled 50-direction fixture from Hamlet; emotion hints present on
+the correct beats in the parsed play; unit tests green.
+
+---
+
+## Phase 34 — Voice casting algorithm
+
+Map `cast.json` characters to voices from `vorpal/tts/voices.py`. The goal is
+a plausible, varied cast: protagonist gets the richest voice, no two named
+characters with more than 50 lines share a voice, gender is matched where
+available, minor/cameo characters cycle through a shared pool.
+
+- `vorpal/play/casting.py`: `assign_voices(cast, voice_registry) → CastSheet`.
+  `CastSheet`: `{character_name: VoiceEntry}`.
+  Algorithm:
+  1. Collect available voices from registry, split into male/female/unknown pools.
+  2. Assign protagonist: best voice matching gender (configurable best-voice
+     name, default `bm_george` for male protagonist).
+  3. Assign major characters: round-robin through gender-matched pool, skip
+     already-assigned.
+  4. Assign minor/cameo: shared pool — multiple characters may share a voice
+     when the registry is exhausted; logged clearly.
+  5. Narrator voice (for stage directions): configurable, default `bm_lewis`.
+- `vorpal cast <play_txt_or_json>` CLI command: prints the cast sheet as a
+  table (character | voice | role | lines | gender).
+- `--cast-override cast_override.json`: `{"HAMLET": "bm_daniel"}` — overrides
+  individual assignments before synthesis.
+- Unit tests: 20-character cast assigned correctly from a 10-voice mock
+  registry; protagonist always gets the configured best voice; no major
+  character shares a voice when registry has room; overflow logged.
+
+**Accept when:** `vorpal cast corpus/plays/hamlet.txt` prints a full Hamlet
+cast table with no two major characters sharing a voice; `--cast-override`
+tested round-trip; unit tests green.
+
+---
+
+## Phase 35 — Multi-voice synthesis routing
+
+The synthesis engine currently uses one voice for the whole book. Plays route
+each speech chunk to its character's assigned voice. Stage directions go to the
+narrator voice (or are silenced). Cache keys must include the voice name so
+character-A and character-B lines don't collide.
+
+- `vorpal/play/synth_router.py`: `route_chunks(beats, cast_sheet) → list[ChunkWithVoice]`.
+  Each chunk gains a `voice: VoiceEntry` field. Stage directions: if
+  `--stage-directions narrator`, append a direction chunk with the narrator
+  voice; if `skip` (default), drop.
+- `vorpal/synth.py`: extend `_cache_key()` to include `voice.name` (already
+  safe — voice name is a stable string; existing cache entries with no voice
+  field get a migration default of the book-level voice name so they're not
+  invalidated).
+- `synthesize_chunks()`: accept per-chunk voice override; pass to engine.
+- **Default (non-play) behavior unchanged** — no voice override field set,
+  same cache keys as before.
+- Unit tests: 2-character 4-beat exchange produces 4 synthesis calls with
+  correct voice names; cache key differs between characters; narrator chunks
+  have narrator voice; direction chunks absent when `--stage-directions skip`.
+
+**Accept when:** a generated 2-character mini-play synthesizes to 2 distinct
+voice assignments; cache round-trip correct; existing non-play tests unchanged
+(zero cache key drift); unit tests green.
+
+---
+
+## Phase 36 — Act/scene chapter structure
+
+Books get one chapter per chapter marker. Plays get one chapter per act
+(default) or per scene (`--chapters scene`). Chapter titles incorporate the
+scene location pulled from the first stage direction of each scene.
+
+- `vorpal/play/chapters.py`: `build_play_chapters(play_doc, mode) → list[Chapter]`.
+  `mode`: `act` (default) or `scene`. Chapter title format:
+  `"Act I"` / `"Act I, Scene 3 — Elsinore. A platform before the castle."`.
+  Location extracted from the scene's first `location`-classified direction
+  (Phase 33); falls back to no location suffix when absent.
+- These `Chapter` objects slot into the existing manifest chapter list — the
+  mastering pipeline needs no changes.
+- Unit tests: a 3-act 2-scene-per-act play in `act` mode → 3 chapters; in
+  `scene` mode → 6 chapters; location appended when present.
+
+**Accept when:** a mini-play fixture in `act` mode produces correct chapter
+count and titles; `scene` mode tested; titles pass through `spoken_form()`
+normalization without errors; existing chapter pipeline tests green.
+
+---
+
+## Phase 37 — Tone/emotion from stage direction context
+
+Wire the `tone_hint` fields placed by Phase 33 into the existing tone
+approximation system (Phase 11's `KokoroApproxEngine` layer). A speech
+preceded by "[Weeping]" is synthesized with the `somber` tone; "[Furiously]"
+with `tense`; "[Aside]" with `wry`; etc. No LLM call required — the hint
+comes from Phase 33's rule-based classifier.
+
+- `vorpal/play/synth_router.py`: extend `route_chunks()` to propagate
+  `tone_hint` from the preceding direction beat onto the speech chunk's
+  `tone` field.
+- `vorpal/synth.py`: `_cache_key()` already includes tone; no change needed.
+  `synthesize_chunk()` receives the per-chunk tone from the manifest — no
+  change needed.
+- Acoustic delta test (recorded in docs, not asserted in pytest): synthesize
+  Ophelia's "There's rosemary, that's for remembrance" with `tone_hint=somber`
+  vs `neutral`; measure pitch-mean delta (expect ≥ 5 Hz as per Phase 11
+  gate). Log result in status doc.
+- Unit tests: chunks following a "weeping" direction carry `somber` tone;
+  chunks with no preceding direction carry `neutral`; `aside` → `wry`.
+
+**Accept when:** tone hints from Phase 33 propagate correctly to synthesis
+chunks in unit tests; acoustic delta recorded (not gated in pytest); default
+book pipeline unaffected.
+
+---
+
+## Phase 38 — `vorpal play` end-to-end command
+
+The unified entry point. `vorpal play <input>` runs the full play pipeline:
+fetch (if URL/title given) → parse → extract cast → assign voices → tone-tag
+→ synthesize (multi-voice) → chapter-structure → master → package. Includes
+the same review gate as `vorpal build` — the cast sheet is the review surface.
+
+- `vorpal/play/pipeline.py`: `build_play(input_path, options) → Path` — the
+  orchestrating function, analogous to `build_book()`.
+- `vorpal/cli.py`: `play` subcommand with flags:
+  `--chapters act|scene` (default `act`),
+  `--stage-directions skip|narrator` (default `skip`),
+  `--cast-override <json>`,
+  `--voice <narrator-voice>` (narrator for stage-direction mode),
+  plus the standard `--output`, `--draft`, `--footnotes`, `--profile` flags.
+- The review gate surfaces: cast sheet (character → voice → lines), chapter
+  list, and standard chapter-text excerpt — the operator can approve or edit
+  before synthesis begins.
+- `vorpal/play/__init__.py` exports the public API; the `vorpal/` package
+  gains no new top-level files — all play code lives under `vorpal/play/`.
+
+**Accept when:** `vorpal play corpus/plays/hamlet.txt` runs without error
+to the review gate on the small hamlet fixture; cast sheet displayed; after
+`--approve`, synthesis completes with distinct per-character voices; output
+is a valid `.m4b`; `vorpal build` on a non-play file unchanged.
+
+---
+
+## Phase 39 — Cast audition mode
+
+Before committing to a 4-hour multi-voice Hamlet synthesis, the operator
+should be able to hear who sounds like whom. `vorpal cast-audition` synthesizes
+2–3 representative lines per character and outputs one `.wav` per named
+character.
+
+- `vorpal/play/audition.py`: `build_audition(play_doc, cast_sheet, output_dir)`.
+  For each character with `role != cameo`: pick the 1–3 speeches with the most
+  words (representative sample), synthesize with the assigned voice and tone
+  hint, write `<output_dir>/<CHARACTER_NAME>.wav`.
+- `vorpal cast-audition <input> [--output <dir>]` CLI subcommand.
+- Lines are short (audition, not full synth): cap at 200 tokens per character.
+- H-NNN entry in `docs/09-human-review-queue.md`: operator listens to the
+  audition directory and decides whether to accept the casting, adjust via
+  `--cast-override`, or re-run the audition with different voices. Document
+  the two outcomes clearly.
+
+**Accept when:** `vorpal cast-audition` on the mini-play fixture produces one
+`.wav` per non-cameo character; files are non-empty and correctly named;
+H-NNN filed in review queue; unit tests green on audition line-selection logic.
+
+---
+
+## Phase 40 — Play corpus hardening loop
+
+The same loop-until-dry methodology as Phase 20, applied to plays. Download
+and parse at least 5 plays, identify breakage points, minimize each into a
+fixture test.
+
+Target corpus (all Project Gutenberg public-domain):
+1. **Hamlet** (`#1524`) — large cast, 5 acts, prose + verse mix.
+2. **A Midsummer Night's Dream** (`#1514`) — fairy characters, short scenes,
+   songs, high stage-direction density.
+3. **Macbeth** (`#1533`) — short play, strong emotion cues, witches as a
+   group speaker.
+4. **Twelfth Night** (`#1523`) — high prose content, disguise plotline,
+   many minor characters.
+5. **The Importance of Being Earnest** by Oscar Wilde (`#844`) — non-Shakespeare,
+   different formatting conventions: speaker labels with no ALL-CAPS, dashes
+   instead of periods, longer stage directions. Good format-diversity test.
+
+Edge cases to watch and fix:
+- Group speakers: `ALL`, `BOTH`, `CHORUS`, `WITCHES` (Three Witches) — handle
+  as a single synthetic character with a blended voice or dedicated group voice.
+- Numbered speakers: `FIRST GENTLEMAN`, `SECOND GENTLEMAN` — deduplicate into
+  pools.
+- Embedded songs / sonnets (italicised, indented differently from speeches).
+- Very long speeches split across multiple text paragraphs.
+- Non-PG-format Wilde (different capitalisation conventions).
+- Each found breakage → minimized fixture in `tests/test_phase40_plays.py`.
+
+Update `docs/06-corpus.md` with a "Play corpus" section: title, PG ID, why
+chosen, what edge case it exercises, parse result summary.
+
+**Accept when:** all 5 plays parse without error (act count, scene count,
+speaker count verified); any pre-existing parse bugs fixed and covered by
+fixture tests; `docs/06-corpus.md` play section filled in; full test suite
+green.
+
+---
+
+## What has graduated out of "far future"
+
+*(Updated 2026-06-09 — items that were "thought about, not planned" have
+earned their place in the arcs above.)*
+
+- **Parallel OCR / batched TTS** → Arc 4 (Phases 15–16). Done.
+- **LLM-assisted OCR repair** → Arc 4 (Phase 17). Done.
+- **Library / batch mode** → Arc 4 (Phase 18). Done.
+- **Manifest as first-class artifact** → Arc 4 (Phase 19). Done.
+- **Corpus hardening** → Arc 4 (Phase 20). Done.
+- **OpenAI TTS live acceptance** → Arc 5 (Phase 21).
+- **Tone with real instruction engine** → Arc 5 (Phase 22).
+- **StyleTTS2 voice design** → Arc 5 (Phase 23, Phase 9b).
+- **Dialogue-aware delivery** → Arc 5 (Phase 24).
+- **Footnote narration** → Arc 5 (Phase 25).
+- **Piper draft engine** → Arc 6 (Phase 26).
+- **Loudness profiles** → Arc 6 (Phase 27).
+- **Richer cover art / metadata** → Arc 6 (Phase 28).
+- **Chapter summaries** → Arc 6 (Phase 29).
+- **TUI / local web UI** → Arc 6 (Phase 30).
+- **Multi-voice dramatization / theatrical mode** → Arc 7 (Phases 31–40).
+
+**Still explicitly out of scope:** voice cloning; DOCX/web input; GUI as a
+*replacement* for the CLI (Phase 30 is additive); DRM circumvention.
 
 ## Risks & mitigations
 

@@ -48,6 +48,21 @@ _GENDER_TABLE: dict = {
     "MERRIMAN": "m", "ERNEST": "m",
 }
 
+# Generic role labels (Gutenberg convention: "KING", "QUEEN", "FIRST CLOWN",
+# "SECOND GENTLEMAN" …). Looked up on the full name and on the last word, so
+# numbered/qualified labels resolve too. Added in Phase 34 — the real Hamlet
+# text labels Claudius/Gertrude as KING/QUEEN, which the canonical table misses.
+_GENERIC_GENDER: dict = {
+    "KING": "m", "QUEEN": "f", "PRINCE": "m", "PRINCESS": "f",
+    "LORD": "m", "LADY": "f", "GENTLEMAN": "m", "GENTLEWOMAN": "f",
+    "PRIEST": "m", "FRIAR": "m", "MONK": "m", "NUN": "f",
+    "CLOWN": "m", "FOOL": "m", "GRAVEDIGGER": "m",
+    "SAILOR": "m", "SOLDIER": "m", "CAPTAIN": "m", "OFFICER": "m",
+    "DUKE": "m", "DUCHESS": "f", "COUNT": "m", "COUNTESS": "f",
+    "BOY": "m", "GIRL": "f", "NURSE": "f", "WITCH": "f",
+    "FATHER": "m", "MOTHER": "f", "BROTHER": "m", "SISTER": "f",
+}
+
 # Pronoun pattern for scanning stage directions
 _MASC_PRONOUN_RE = re.compile(r"\b(he|him|his)\b", re.IGNORECASE)
 _FEM_PRONOUN_RE = re.compile(r"\b(she|her|hers)\b", re.IGNORECASE)
@@ -95,6 +110,13 @@ def _guess_gender(name: str, play_doc: PlayDoc) -> str:
     canonical = name.strip().upper()
     if canonical in _GENDER_TABLE:
         return _GENDER_TABLE[canonical]
+
+    # Generic role labels: "KING", "QUEEN", "FIRST CLOWN", "SECOND GENTLEMAN"…
+    if canonical in _GENERIC_GENDER:
+        return _GENERIC_GENDER[canonical]
+    last_word = canonical.split()[-1] if canonical.split() else ""
+    if last_word in _GENERIC_GENDER:
+        return _GENERIC_GENDER[last_word]
 
     # Pronoun scan: look for "NAME … he/she" patterns in stage directions
     name_pat = re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE)

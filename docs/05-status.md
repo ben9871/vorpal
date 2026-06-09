@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 30 done — all arcs complete).* Read this first when picking the project back up.
+*Last updated: 2026-06-09 (Phase 34 done — Arc 7 theatrical mode underway).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -45,10 +45,75 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 6: Phase 28 — cover art & metadata | ✅ done (pending VLC tag verify) | commit Phase 28 |
 | Arc 6: Phase 29 — chapter summary side product | ✅ done (live LLM pending) | commit Phase 29 |
 | Arc 6: Phase 30 — TUI / thin local web UI (`vorpal serve`) | ✅ done (pending H-010 usability spot-check) | commit Phase 30 |
+| Arc 7: Phase 31 — Gutenberg play downloader + plain-text play parser | ✅ done | commit `9c5a7b1` |
+| Arc 7: Phase 32 — character extraction + role classification | ✅ done | commit `4b6059b` |
+| Arc 7: Phase 33 — stage direction classification + emotion hints | ✅ done | commit `8fae5ab` |
+| Arc 7: Phase 34 — voice casting algorithm (`vorpal cast`) | ✅ done | commit Phase 34 |
+| **Arc 7: Phase 35** — multi-voice synthesis routing | ⬅ **next** | [04-roadmap.md](04-roadmap.md) |
 
-**Arc 6 complete.** All arcs (1–6) done. Phases 21 and 22 permanently blocked on
-`VORPAL_OPENAI_KEY` — H-002. Phase 30 pending human usability spot-check (H-010).
+**Arc 6 complete; Arc 7 (theatrical mode, Phases 31–40) underway** — read
+`docs/04-roadmap.md` Arc 7 section before continuing. The arc extends vorpal to
+stage plays: Project Gutenberg download, character extraction, voice casting,
+multi-voice synthesis, act/scene chapters, emotion hints from stage directions,
+`vorpal play` + `vorpal cast` + `vorpal cast-audition` commands, play corpus
+hardening. Phases 21 and 22 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 34 acceptance results
+
+**795 tests green** (795 = 767 Phase-33 + 28 new in `tests/test_phase34.py`).
+767 baseline verified before starting (36 skipped — fastapi not installed in
+this container, Phase 30 tests skip cleanly).
+
+### What was built
+
+Voice casting: map the Phase 32 cast to voice-registry entries.
+
+- `vorpal/play/casting.py` — new module:
+  - `CastSheet` dataclass: `assignments` (character → voice id), `narrator_voice`
+    (default `bm_lewis`), `notes` (shared-voice / overflow / override log);
+    JSON round-trip via `to_dict`/`from_dict`; `shared_voices()` helper
+  - `assign_voices(cast, voices, best_voice, narrator_voice)`:
+    protagonist gets gender-matched best voice (`bm_george` m / `af_heart` f,
+    configurable); protagonist+major+any character with > 50 lines get unique
+    voices while the registry lasts (gender pool first, then any unused, narrator
+    voice avoided); minor/cameo prefer unused voices, then round-robin the
+    gender-matched shared pool; all sharing and overflow logged in `notes`
+  - `apply_overrides(sheet, overrides, voices)`: unknown voice id → `ValueError`
+    (typos must not silently miscast); unknown character → note + skip
+  - `castable_voices(registry)`: kokoro engines only (credential-gated openai
+    voices excluded from casting)
+  - `format_cast_table(...)`: the `vorpal cast` table renderer
+- `vorpal/tts/voices.py`:
+  - `VoiceEntry.gender` field (`"m" | "f" | None`) populated across the registry
+  - Two new Kokoro voices: `bm_lewis` (Lewis — play-narrator default) and
+    `bm_daniel` (Daniel) — both used by Phase 9/23 spikes, now registry-curated
+- `vorpal/play/characters.py` — `_GENERIC_GENDER` fallback table (KING → m,
+  QUEEN → f, FIRST CLOWN → m, …; full-name and last-word lookup). Found via the
+  real Hamlet acceptance run: Gutenberg labels Claudius/Gertrude as KING/QUEEN,
+  which the canonical-name table missed, so KING (102 lines) drew a female voice.
+- `vorpal/cli.py` — `cast` subcommand: `input` (.txt or play.json),
+  `--cast-override <json>`, `--narrator` (default bm_lewis), `--best-voice`
+- `tests/test_phase34.py` — 28 unit tests (10-voice mock registry, 20-character
+  cast, overrides, round-trip, determinism, CLI parser)
+
+### Acceptance
+
+- 795 tests green ✅
+- `vorpal cast corpus/plays/hamlet.txt` prints a full 35-character Hamlet cast
+  table; HAMLET → bm_george (protagonist best voice); KING/POLONIUS/HORATIO all
+  male-matched unique voices; QUEEN/OPHELIA female voices; narrator bm_lewis ✅
+- No two characters with > 50 lines share a voice (HAMLET 356, HORATIO 107,
+  KING 102, POLONIUS 86, QUEEN 69, LAERTES 62, OPHELIA 54 — 7 distinct voices) ✅
+- 20-character cast on 10-voice mock registry: protagonist gets configured best
+  voice; no major shares; overflow logged ✅
+- `--cast-override` round-trip: file → applied → JSON round-trip ✅; unknown
+  voice id errors out; unknown character noted and skipped ✅
+- Cast sheet JSON round-trips through `to_dict`/`from_dict` ✅
+- Casting is deterministic (same input → same sheet) ✅
+- No money spent, no remote push ✅
+
+---
 
 ## Phase 30 acceptance results
 
