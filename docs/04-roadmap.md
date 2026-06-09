@@ -1000,7 +1000,7 @@ green.
 
 ---
 
-# Arc 8 — Trotsky Military Writings Production Run *(Phases 41–45)*
+# Arc 8 — Trotsky Military Writings Production Run *(Phases 41–46)*
 
 *(Queued 2026-06-09. Arc 7 delivered multi-voice play synthesis. Arc 8 is the
 first full production run against real political/military literature: five volumes
@@ -1074,7 +1074,59 @@ dense analytical passage, a direct address to soldiers, and a closing peroration
 
 ---
 
-## Phase 43 — Volume 1 production build (1918)
+## Phase 43 — Audio stitching quality fix *(must land before any Trotsky synthesis)*
+
+**Problem:** TTS models have slightly different prosody at the start and end of
+each generation call — the model "knows" the context begins and ends there. When
+adjacent chunk WAVs are concatenated with a hard cut, the boundary is audible:
+the narrator stops mid-flow and restarts, even at a correct sentence boundary.
+This is most noticeable in long, analytically dense prose (exactly what Trotsky
+wrote).
+
+**Two-part fix:**
+
+**Part 1 — Paragraph-boundary chunking (`vorpal/normalize.py`):**
+- A blank-line paragraph break must flush the chunk accumulator, even if the
+  current pack is below `CHUNK_MAX_CHARS`.
+- Sentences must never cross a paragraph boundary in the same chunk.
+- Add `PARAGRAPH_BREAK` sentinel: when `normalize_chapter()` encounters a
+  paragraph boundary, emit the current chunk (if non-empty) before starting a
+  new one.
+- Cache keys are unchanged (keyed on text content, not boundary logic).
+- Existing unit tests must still pass; add tests covering: multi-paragraph input
+  produces separate chunks per paragraph; single over-long sentence still splits
+  at CHUNK_MAX_CHARS as before.
+
+**Part 2 — Crossfade stitching at chapter assembly (`vorpal/synth.py` or
+`vorpal/master.py`):**
+- When concatenating adjacent intra-paragraph chunk WAVs into a chapter WAV,
+  apply a short (20–30 ms) linear crossfade at the join instead of a hard cut.
+- The crossfade is inaudible as a fade but eliminates the prosody-restart
+  artifact by blending the tail of one generation into the head of the next.
+- Inter-paragraph silence (the gap between paragraph chunks) is unchanged.
+- The crossfade is applied at assembly time; the per-chunk cache files are
+  unaffected (re-stitching a cached chapter is cheap and correct).
+- Add `crossfade_ms: int = 25` parameter, defaulting to 25 ms; expose as
+  `--crossfade-ms` CLI flag for experimentation.
+
+**Acceptance:**
+- Existing regression set (Firestone + digital books) still green — no
+  stitching regression.
+- Unit test: crossfade of two known WAVs produces correct output length
+  (`len_a + len_b - crossfade_samples`), valid WAV, no clipping.
+- Unit test: paragraph boundaries produce separate chunks; sentence boundaries
+  within a paragraph pack into the same chunk when under limit.
+- **(human, H-019):** synthesize a 3-paragraph passage (use a Firestone excerpt)
+  before and after this fix and listen for the boundary artifact. The fix should
+  make sentence-boundary joins inaudible.
+- **Do not begin any Trotsky production synthesis (Phase 44 onward) until this
+  phase is committed and green.** The v1 chapter WAVs already rendered
+  (`trotsky_v1_workdir/chapters/`) were produced before the fix — delete them
+  so they are re-synthesized with the corrected stitching.
+
+---
+
+## Phase 44 — Volume 1 production build (1918)
 
 Full production build of `trotsky/military-writings-trotsky-v1.epub`.
 
@@ -1106,7 +1158,7 @@ shows correct chapter count, H-014 filed, results in `docs/06-corpus.md`.
 
 ---
 
-## Phase 44 — Volumes 2 and 3 production builds (1919, 1920)
+## Phase 45 — Volumes 2 and 3 production builds (1919, 1920)
 
 Build `military-writings-trotsky-v2.epub` (Volume 2, 1919) and
 `military-writings-trotsky-v3.epub` (Volume 3, 1920) with the same
@@ -1128,7 +1180,7 @@ filed, results in `docs/06-corpus.md`.
 
 ---
 
-## Phase 45 — Volumes 4 and 5 production builds (1921–1923, PDF)
+## Phase 46 — Volumes 4 and 5 production builds (1921–1923, PDF)
 
 **Volume 4** (`military-writings-trotsky-v4.epub`, 1921–1923): EPUB, same
 pipeline as Volumes 1–3. Build with `--year 1921`.

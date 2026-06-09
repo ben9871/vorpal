@@ -57,9 +57,10 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
 | Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ✅ done | commit Phase 41 |
 | Arc 8: Phase 42 — voice selection: Trotsky audition | ✅ done (pending H-013 listen) | commit Phase 42 |
-| Arc 8: Phase 43 — Volume 1 production build (1918) | ⬅ next | — |
-| Arc 8: Phase 44 — Volumes 2-3 production builds (1919, 1920) | queued | — |
-| Arc 8: Phase 45 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
+| Arc 8: Phase 43 — audio stitching quality fix (paragraph chunking + crossfade) | ⬅ next | — |
+| Arc 8: Phase 44 — Volume 1 production build (1918) | queued | — |
+| Arc 8: Phase 45 — Volumes 2-3 production builds (1919, 1920) | queued | — |
+| Arc 8: Phase 46 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
 
 **Arc 7 (theatrical mode, Phases 31–40) complete.** vorpal now builds
 multi-voice play audiobooks: `vorpal fetch-play` / `cast` / `cast-audition` /
@@ -69,12 +70,15 @@ synthesis → m4b. Six-play Gutenberg corpus parses clean (see
 audition listen) gates the first full-Hamlet synthesis. Phases 21 and 22
 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 
-**Arc 8 (Trotsky production run, Phases 41–45) queued.** Five volumes of
-Leon Trotsky's Military Writings (1918–1923) are in `trotsky/` as EPUBs (v1–v4)
-and a PDF (v5). The arc builds the fidelity QA tooling first, then produces one
-.m4b per volume at maximum quality with voice `blend_deep_steady`. Human
-listening spot-checks are H-013 (voice audition verdict) through H-018 (per-volume
-listen). See `docs/04-roadmap.md` Arc 8 for full acceptance criteria and voice rationale.
+**Arc 8 (Trotsky production run, Phases 41–46) in progress.** Phases 41
+(fidelity tooling) and 42 (voice audition) done. Phase 43 (audio stitching fix)
+is the mandatory next step — **no Trotsky synthesis may begin until it is
+committed.** A mid-sentence stop/restart artifact was observed caused by
+TTS chunk boundary prosody mismatch. Fix: (1) paragraph boundaries flush the
+chunk accumulator in `normalize.py`; (2) 25 ms crossfade at WAV join in
+chapter assembly. The 4 chapter WAVs already rendered in `trotsky_v1_workdir/`
+must be deleted before Phase 44 so they re-synthesize with the corrected
+stitching. See `docs/04-roadmap.md` Phase 43 for full spec.
 
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
 
@@ -1586,13 +1590,25 @@ vorpal build tests/fixtures/outline.pdf --draft --end-page 3
 **Arc 8 (Phases 41–45) is the active work.** Read `docs/04-roadmap.md` Arc 8
 for full acceptance criteria before starting.
 
-**Phase 41 (text fidelity tooling) is first.** Key steps:
-1. Write `vorpal/qa/fidelity.py` — `extract_epub_chapter_texts()`,
-   `compare_chapters()`, `FidelityReport`, `format_fidelity_report()`
-2. Wire `vorpal fidelity <epub> <workdir>` CLI subcommand
-3. Unit tests: similarity scoring, dropped-paragraph detection, order anomalies
-4. Run `vorpal build --stop-after segment` on all five Trotsky volumes
-5. Run `vorpal fidelity` on each workdir; record results in `docs/06-corpus.md`
+**Phase 43 (audio stitching fix) is the mandatory next step — do not skip.**
+
+A mid-sentence stop/restart artifact was observed in synthesized audio. Cause:
+TTS models have different prosody at the start/end of each generation call; a
+hard-cut join between adjacent chunk WAVs is audible even at sentence boundaries.
+
+**What to build:**
+1. `vorpal/normalize.py` — paragraph boundaries must flush the chunk accumulator.
+   A blank-line paragraph break always emits the current chunk (if non-empty)
+   before starting a new one. Sentences within a paragraph still pack up to
+   `CHUNK_MAX_CHARS` as before. Cache keys are unchanged.
+2. `vorpal/synth.py` (or chapter assembly) — add `crossfade_ms=25` crossfade
+   when concatenating adjacent intra-paragraph chunk WAVs. Linear crossfade,
+   applied at assembly time. Inter-paragraph silence unchanged.
+3. Unit tests: crossfade output length is correct; paragraph boundary produces
+   separate chunks; existing regression suite still green.
+4. H-019: synthesize a short before/after comparison and file for human listen.
+5. **Delete `trotsky_v1_workdir/chapters/`** (4 pre-fix chapter WAVs) so they
+   re-render with corrected stitching in Phase 44.
 
 **Trotsky source files:**
 ```
