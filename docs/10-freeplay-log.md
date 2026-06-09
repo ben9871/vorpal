@@ -17,6 +17,9 @@ What was made / explored / written. Where it lives if it is in playground/.
 
 -->
 
+## Phase 30 — 2026-06-09
+Wrote `playground/the_last_door.txt`: Alice opens thirty doors in order. The last one contains a browser window with a chapter list, an "Include" checkbox, and a Build button. The Cheshire Cat explains that pressing Build makes the thing — and then you can press it again with a different voice, and again with `--profile car`, and it never really ends. She presses the button. The server is still running.
+
 ## Phase 29 — 2026-06-09
 Wrote `playground/the_summary_of_all_things.txt`: Alice is commissioned to summarise her adventures in one paragraph. She provides everything instead; the model provides nothing; both are technically correct. Blocked=False, cache_hit=False, generated once and stored. It will not be generated again.
 
