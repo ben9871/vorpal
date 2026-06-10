@@ -365,15 +365,19 @@ def normalize_chapter(body: str, max_chars: int = 400,
                        paragraph_pause_ms: int = PAUSE_PARAGRAPH_MS) -> list:
     """Normalize a chapter body and pack it into prosody-aware Chunks.
 
-    Algorithm:
-      1. Split body into paragraphs (double newlines).
-      2. For each paragraph, run spoken_form() then pysbd sentence segmentation.
-      3. Pack sentences greedily into chunks <= max_chars, never splitting a
-         sentence across chunks.
-      4. At paragraph boundaries, the last chunk of the paragraph carries
-         pause_after_ms = paragraph_pause_ms; mid-paragraph chunks carry 0.
-      5. A sentence that exceeds max_chars alone is split at clause boundaries
-         as a last resort.
+    Chunking hierarchy (Phase 43 — strict priority order):
+      1. Paragraph boundary always flushes. The accumulator is per-paragraph;
+         paragraphs are never merged into one chunk, however short.
+      2. A paragraph exceeding max_chars is split at sentence boundaries only:
+         sentences pack greedily; when the next sentence would overflow, the
+         current pack is emitted and a new one starts with that sentence.
+      3. A sentence is NEVER cut in the middle. A single sentence longer than
+         max_chars is emitted intact as one oversized chunk — the engine's
+         internal segmentation handles it better than an arbitrary text cut
+         (a hard mid-sentence cut produces an audible prosody restart).
+      4. The last chunk of a paragraph carries pause_after_ms =
+         paragraph_pause_ms; mid-paragraph chunks carry 0 (crossfaded at
+         assembly, see synth.assemble_chapter_wav).
     """
     paragraphs = [p.strip() for p in re.split(r"\n\n+", body) if p.strip()]
     chunks: list = []
@@ -410,23 +414,16 @@ def normalize_chapter(body: str, max_chars: int = 400,
             is_last_sent = (s_i == len(sentences) - 1)
 
             if len(sent) > max_chars:
-                # Flush current, then split oversized sentence at clause boundaries
+                # Never split mid-sentence (Phase 43 hard invariant): flush the
+                # accumulator, then emit the oversized sentence intact as its
+                # own chunk.
                 if current:
                     _emit(current, PAUSE_SENTENCE_MS)
                     current = ""
-                clauses = re.split(r"(?<=[,;:])\s+", sent)
-                sub = ""
-                for ci, clause in enumerate(clauses):
-                    if len(sub) + len(clause) + 1 <= max_chars:
-                        sub = (sub + " " + clause).strip() if sub else clause
-                    else:
-                        if sub:
-                            _emit(sub, PAUSE_SENTENCE_MS)
-                        sub = clause
-                if sub:
-                    at_para_end = is_last_sent
-                    pause = paragraph_pause_ms if at_para_end and not is_last_para else 0
-                    _emit(sub, pause)
+                pause = (paragraph_pause_ms
+                         if is_last_sent and not is_last_para
+                         else PAUSE_SENTENCE_MS)
+                _emit(sent, pause)
             elif len(current) + len(sent) + 1 <= max_chars:
                 current = (current + " " + sent).strip() if current else sent
             else:

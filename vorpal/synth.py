@@ -101,6 +101,92 @@ def _gap_marker(sample_rate: int, duration_ms: int = 1000):
     )
 
 
+# ── chapter assembly with crossfade stitching (Phase 43) ─────────────────
+
+DEFAULT_CROSSFADE_MS = 25
+
+
+def assemble_chapter_wav(chunk_wavs: list, out_path: Path,
+                         crossfade_ms: int = DEFAULT_CROSSFADE_MS) -> tuple:
+    """Stream chunk WAVs into one chapter WAV.
+
+    chunk_wavs: list of (wav_path, pause_after_ms).
+
+    Joins:
+      - pause_after_ms > 0 (paragraph boundary): hard join + that much
+        silence — unchanged from pre-Phase-43 behavior.
+      - pause_after_ms == 0 (intra-paragraph, sentence-boundary join): a
+        short linear crossfade blends the tail of one chunk into the head of
+        the next, removing the prosody-restart artifact a hard cut leaves.
+        Output length for two chunks is len_a + len_b - crossfade_samples.
+      - crossfade_ms == 0 restores the old behavior exactly (hard cut +
+        50 ms breath).
+
+    Streaming (never a whole chapter in RAM — a long chapter is ~0.5 GB of
+    floats); only the held-back crossfade tail (~25 ms) is buffered.
+
+    Returns (total_frames, sample_rate).
+    """
+    import numpy as np
+    import soundfile as sf
+
+    total_frames = 0
+    sample_rate = None
+    out_handle = None
+    pending_tail = None   # held-back tail of the previous chunk, to blend
+    try:
+        for wav_path, pause_ms in chunk_wavs:
+            data, sr = sf.read(str(wav_path), dtype="float32")
+            if out_handle is None:
+                sample_rate = sr
+                out_handle = sf.SoundFile(str(out_path), mode="w",
+                                          samplerate=sr, channels=1)
+
+            if pending_tail is not None:
+                n = len(pending_tail)
+                if len(data) >= 2 * n:
+                    # Linear crossfade: equal-sum ramps, so the blend never
+                    # exceeds max(|tail|, |head|) — no clipping possible.
+                    ramp = np.linspace(0.0, 1.0, n, dtype="float32")
+                    data = data.copy()
+                    data[:n] = pending_tail * (1.0 - ramp) + data[:n] * ramp
+                else:
+                    # Next chunk too short to blend into — flush tail as-is.
+                    out_handle.write(pending_tail)
+                    total_frames += len(pending_tail)
+                pending_tail = None
+
+            cf_samples = int(crossfade_ms / 1000 * sr)
+            if pause_ms > 0 or cf_samples <= 0 or len(data) < 2 * cf_samples:
+                # Hard join + silence (paragraph gap, or crossfade disabled /
+                # impossible). 50 ms breath preserves old pacing when the
+                # crossfade is off.
+                out_handle.write(data)
+                total_frames += len(data)
+                gap_ms = pause_ms if pause_ms > 0 else (
+                    0 if cf_samples > 0 else 50)
+                if gap_ms:
+                    silence = np.zeros(int(gap_ms / 1000 * sr),
+                                       dtype="float32")
+                    out_handle.write(silence)
+                    total_frames += len(silence)
+            else:
+                # Sentence-boundary join: hold back the tail for blending
+                # into the next chunk's head.
+                out_handle.write(data[:-cf_samples])
+                total_frames += len(data) - cf_samples
+                pending_tail = data[-cf_samples:].copy()
+
+        if pending_tail is not None:
+            out_handle.write(pending_tail)
+            total_frames += len(pending_tail)
+    finally:
+        if out_handle is not None:
+            out_handle.close()
+
+    return total_frames, sample_rate
+
+
 # ── per-chunk synthesis with retry / split ────────────────────────────────
 
 def _synth_with_retry(text: str, tone: Optional[str], engine: TTSEngine,
@@ -208,10 +294,13 @@ def tts_all_chapters(
     chapters_dir: Path,
     engine: TTSEngine,
     allow_gaps: bool = False,
+    crossfade_ms: int = DEFAULT_CROSSFADE_MS,
 ) -> list:
     """Synthesize all chapters and return chapter result dicts.
 
     chapters: list of dicts with keys title, body, skip, spoken_intro.
+    crossfade_ms: linear crossfade at intra-paragraph chunk joins (Phase 43);
+    0 disables (hard cut + 50 ms breath, the pre-Phase-43 behavior).
     Returns: [{title, wav, duration_ms}, ...]
 
     Aborts (raises SystemExit) if any chunk fails and allow_gaps is False.
@@ -390,27 +479,10 @@ def tts_all_chapters(
             print("  !! No audio for this chapter — skipping")
             continue
 
-        # Assemble chapter WAV from cached chunk files + pauses, streaming —
-        # never the whole chapter in RAM (a long chapter is ~0.5 GB of floats)
-        total_frames = 0
-        sample_rate = None
-        out_handle = None
-        try:
-            for wav_path, pause_ms in chunk_wavs:
-                data, sr = sf.read(str(wav_path), dtype="float32")
-                if out_handle is None:
-                    sample_rate = sr
-                    out_handle = sf.SoundFile(str(ch_wav), mode="w",
-                                              samplerate=sr, channels=1)
-                out_handle.write(data)
-                total_frames += len(data)
-                gap_ms = pause_ms if pause_ms > 0 else 50   # 50 ms breath default
-                silence = np.zeros(int(gap_ms / 1000 * sr), dtype="float32")
-                out_handle.write(silence)
-                total_frames += len(silence)
-        finally:
-            if out_handle is not None:
-                out_handle.close()
+        # Assemble chapter WAV from cached chunk files: crossfade at
+        # sentence-boundary joins, silence at paragraph gaps (Phase 43).
+        total_frames, sample_rate = assemble_chapter_wav(
+            chunk_wavs, ch_wav, crossfade_ms=crossfade_ms)
 
         duration_ms = int(total_frames / sample_rate * 1000)
         total_elapsed = int(time.time() - tts_start)

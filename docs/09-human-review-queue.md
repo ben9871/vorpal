@@ -401,6 +401,46 @@ costs one re-synthesis pass per volume, nothing structural.
 
 ---
 
+### [H-019] Phase 43 — Stitching fix listening check (before/after)
+**Added:** 2026-06-10  **Status:** open
+
+**What to review / do:**
+Listen to the paired clips (same 3-paragraph passage from the Trotsky v1
+Introduction — analytically dense prose, the worst case for the artifact;
+regenerate any time with `python scratch/phase43_stitch_ab.py`):
+
+- `scratch/phase43_stitch_ab/before_phase43.wav` — pre-fix stitching
+  (hard cuts + 50 ms silence at every chunk join)
+- `scratch/phase43_stitch_ab/after_phase43.wav` — Phase 43 stitching
+  (25 ms linear crossfade at sentence-boundary joins; paragraph gaps
+  unchanged)
+
+Question: in `before`, can you hear the narrator stop and restart at chunk
+boundaries mid-paragraph (~every 22 s)? In `after`, are those same joins
+inaudible?
+
+*(Note: the roadmap suggested a Firestone excerpt; a Trotsky passage was
+used instead because the artifact was observed on exactly this prose and
+Phase 44 ships it — a strictly more relevant test.)*
+
+**Decision options:**
+- **Joins inaudible in `after`:** Phase 43 confirmed; nothing to do — all
+  Trotsky production builds already use the fix (default `--crossfade-ms 25`).
+- **Still audible:** note whether it's better/same/worse — the crossfade
+  window is one CLI flag (`--crossfade-ms`, try 50–80) and re-stitching a
+  built book is cheap (chunk cache untouched; delete `chapters/` and re-run).
+- **Crossfade itself audible as a fade/blur:** lower `--crossfade-ms`
+  (10–15) and re-stitch.
+
+**Agent's assumption:** proceeded with the default 25 ms crossfade for all
+Phase 44–46 production builds. Machine-side checks pass (correct output
+length, no clipping, monotone blend ramp, silence at paragraph gaps); only
+the perceptual verdict is open.
+
+**Outcome (fill in when done):** …
+
+---
+
 ## Closed items
 
 *(Move entries here when addressed. Keep them for the record.)*

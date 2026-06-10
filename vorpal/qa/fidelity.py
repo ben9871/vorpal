@@ -223,8 +223,25 @@ def _paragraphs(text: str) -> List[str]:
     return [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
 
 
+def _apply_pipeline_hygiene(text: str, header_prefix: Optional[str],
+                            strip_markers: bool) -> str:
+    """Apply the same deterministic hygiene the EPUB pipeline applies
+    (repeated page-header paragraphs, inline [N] endnote markers) to a
+    source item, so fidelity compares like with like."""
+    if strip_markers:
+        from ..extract.epub import strip_endnote_markers
+        text = strip_endnote_markers(text)
+    if header_prefix:
+        paragraphs = re.split(r"\n{2,}", text)
+        kept = [p for p in paragraphs if not p.strip().startswith(header_prefix)]
+        text = "\n\n".join(kept)
+    return text
+
+
 def compare_chapters(source_texts: Dict[str, str],
-                     workdir_texts: Dict[str, str]) -> FidelityReport:
+                     workdir_texts: Dict[str, str],
+                     header_prefix: Optional[str] = None,
+                     strip_markers: bool = False) -> FidelityReport:
     """Compare source items against workdir chapter texts.
 
     - per-chapter similarity (difflib ratio over normalized words)
@@ -233,7 +250,14 @@ def compare_chapters(source_texts: Dict[str, str],
     - order anomalies: chapters whose matched source span starts before the
       previous chapter's span (out of spine/page sequence)
     - unmatched source items (usually deliberately excluded front/backmatter)
+
+    `header_prefix` / `strip_markers` mirror the EPUB pipeline's narration
+    hygiene (read from the workdir manifest QA by `run_fidelity_check`).
     """
+    if header_prefix or strip_markers:
+        source_texts = {
+            sid: _apply_pipeline_hygiene(t, header_prefix, strip_markers)
+            for sid, t in source_texts.items()}
     report = FidelityReport()
     source_ids = [sid for sid, t in source_texts.items() if t.strip()]
     source_words = {sid: _norm_words(source_texts[sid]) for sid in source_ids}
@@ -336,7 +360,28 @@ def format_fidelity_report(report: FidelityReport,
 
 
 def run_fidelity_check(source_path: Path, work_dir: Path) -> FidelityReport:
-    """Convenience wrapper: extract both sides and compare."""
-    source_texts = extract_source_texts(Path(source_path))
-    workdir_texts = extract_workdir_chapter_texts(Path(work_dir))
-    return compare_chapters(source_texts, workdir_texts)
+    """Convenience wrapper: extract both sides and compare.
+
+    Reads the workdir manifest's QA to mirror the pipeline's EPUB narration
+    hygiene (header pattern, endnote markers) on the source side.  Workdirs
+    built before that hygiene existed have neither QA field and compare raw.
+    """
+    import json
+
+    source_path, work_dir = Path(source_path), Path(work_dir)
+    source_texts = extract_source_texts(source_path)
+    workdir_texts = extract_workdir_chapter_texts(work_dir)
+
+    header_prefix, strip_markers = None, False
+    book_json = work_dir / "book.json"
+    if book_json.exists():
+        try:
+            qa = json.loads(book_json.read_text(encoding="utf-8")).get("qa", {})
+        except (ValueError, OSError):
+            qa = {}
+        header_prefix = qa.get("epub_header_pattern") or None
+        strip_markers = qa.get("endnote_markers_stripped") is not None
+
+    return compare_chapters(source_texts, workdir_texts,
+                            header_prefix=header_prefix,
+                            strip_markers=strip_markers)

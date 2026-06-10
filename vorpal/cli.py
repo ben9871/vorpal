@@ -79,6 +79,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Delete existing chapter WAVs and re-synthesise")
     build.add_argument("--allow-gaps", action="store_true",
                        help="Insert audible beep markers for failed chunks instead of aborting")
+    build.add_argument("--crossfade-ms", type=int, default=25, metavar="MS",
+                       dest="crossfade_ms",
+                       help="Linear crossfade at intra-paragraph chunk joins during "
+                            "chapter assembly (default: 25; 0 = hard cuts, the "
+                            "pre-Phase-43 stitching)")
     build.add_argument("--stop-after", choices=["extract", "segment"], default=None,
                        help="Stop the build after the named stage (inspection runs)")
     build.add_argument("--max-cost", type=float, default=None, metavar="USD",
@@ -645,6 +650,7 @@ def cmd_build(args) -> None:
     chapter_results, synth_report = tts_all_chapters(
         chapters, audio_dir, chapters_dir, engine,
         allow_gaps=getattr(args, "allow_gaps", False),
+        crossfade_ms=getattr(args, "crossfade_ms", 25),
     )
 
     if not chapter_results:

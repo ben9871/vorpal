@@ -1,6 +1,6 @@
 # Status & Handoff
 
-*Last updated: 2026-06-09 (Phase 42 done — Trotsky audition rendered, H-013 filed, proceeding with `blend_deep_steady`).* Read this first when picking the project back up.
+*Last updated: 2026-06-10 (Phase 43 done — stitching fix + EPUB narration hygiene committed, H-019 filed; Trotsky production builds unblocked).* Read this first when picking the project back up.
 The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are on it.
 
 > **Renamed:** the package/CLI is now **`vorpal`** (we're combatting jabberwocky).
@@ -57,8 +57,8 @@ The full plan lives in [04-roadmap.md](04-roadmap.md); this file is where we are
 | Arc 7: Phase 40 — play corpus hardening loop | ✅ done | commit Phase 40 |
 | Arc 8: Phase 41 — text fidelity tooling + pre-flight audit | ✅ done | commit Phase 41 |
 | Arc 8: Phase 42 — voice selection: Trotsky audition | ✅ done (pending H-013 listen) | commit Phase 42 |
-| Arc 8: Phase 43 — audio stitching quality fix (paragraph chunking + crossfade) | ⬅ next | — |
-| Arc 8: Phase 44 — Volume 1 production build (1918) | queued | — |
+| Arc 8: Phase 43 — audio stitching quality fix (chunking + crossfade + EPUB hygiene) | ✅ done (pending H-019 listen) | commit Phase 43 |
+| Arc 8: Phase 44 — Volume 1 production build (1918) | ⬅ next | — |
 | Arc 8: Phase 45 — Volumes 2-3 production builds (1919, 1920) | queued | — |
 | Arc 8: Phase 46 — Volumes 4-5 production builds (1921-1923, PDF) | queued | — |
 
@@ -70,17 +70,108 @@ synthesis → m4b. Six-play Gutenberg corpus parses clean (see
 audition listen) gates the first full-Hamlet synthesis. Phases 21 and 22
 remain blocked on `VORPAL_OPENAI_KEY` — H-002.
 
-**Arc 8 (Trotsky production run, Phases 41–46) in progress.** Phases 41
-(fidelity tooling) and 42 (voice audition) done. Phase 43 (audio stitching fix)
-is the mandatory next step — **no Trotsky synthesis may begin until it is
-committed.** A mid-sentence stop/restart artifact was observed caused by
-TTS chunk boundary prosody mismatch. Fix: (1) paragraph boundaries flush the
-chunk accumulator in `normalize.py`; (2) 25 ms crossfade at WAV join in
-chapter assembly. The 4 chapter WAVs already rendered in `trotsky_v1_workdir/`
-must be deleted before Phase 44 so they re-synthesize with the corrected
-stitching. See `docs/04-roadmap.md` Phase 43 for full spec.
+**Arc 8 (Trotsky production run, Phases 41–46) in progress.** Phases 41–43
+done; production synthesis is unblocked. Phase 44 (Volume 1 full build) is
+next: delete `trotsky_v1_workdir/chapters/` (4 pre-fix WAVs) **and force
+re-segmentation** so the Phase 43 EPUB hygiene (header/marker stripping)
+reaches the chapter bodies — the existing workdirs were segmented before the
+hygiene existed. v1–v4 cleared for production (Phase 41); v5 (PDF) stays
+gated until Phase 46 root-causes its fidelity FAIL.
 
 Cross-session judgment + open threads: [`HANDOFF-NOTES.md`](HANDOFF-NOTES.md).
+
+## Phase 43 acceptance results
+
+**946 tests green** (946 = 923 Phase-42 + 12 `tests/test_phase43_epub_hygiene.py`
++ 11 `tests/test_phase43_stitching.py`).
+
+### What was built
+
+The audio stitching quality fix that gates all Trotsky synthesis, in three
+parts (the third found mid-build by the previous session and finished here):
+
+**Part 1 — chunking hierarchy (`vorpal/normalize.py`):**
+- Strict priority order now documented + enforced: (1) paragraph boundary
+  always flushes (already structurally true — accumulator is per-paragraph;
+  now pinned by tests); (2) oversized paragraphs split at sentence
+  boundaries only; (3) **a sentence is never cut mid-sentence** — the old
+  last-resort clause-splitting of >max_chars sentences at `[,;:]` is
+  removed; an oversized sentence is emitted intact as one chunk (Kokoro's
+  internal segmentation handles it more gracefully than an arbitrary text
+  cut). Trotsky's long analytic sentences hit this path constantly.
+- Cache keys unchanged (keyed on text content).
+
+**Part 2 — crossfade stitching (`vorpal/synth.py`):**
+- Chapter assembly extracted into `assemble_chapter_wav(chunk_wavs,
+  out_path, crossfade_ms=25)` — streaming as before, unit-testable.
+- Intra-paragraph joins (pause 0): 25 ms linear crossfade — the tail of one
+  generation blends into the head of the next instead of hard cut + 50 ms
+  silence. Equal-sum ramps ⇒ no clipping possible.
+- Paragraph-gap joins (pause > 0): unchanged silence insertion.
+- `--crossfade-ms` CLI flag (default 25; 0 restores pre-Phase-43 stitching
+  exactly, breath included). Chunks too short to blend fall back to hard
+  join — nothing is ever dropped.
+
+**Part 3 — EPUB narration hygiene (`vorpal/extract/epub.py`,
+`vorpal/qa/fidelity.py`)** — *in-flight work inherited from the previous
+session's aborted v1 build, reviewed and committed here:*
+- marxists.org EPUB conversions repeat a page-header line at the top of
+  every spine item ("Leon Trotsky: 1918 - How The Revolution Armed/…") and
+  carry inline `[47]`-style endnote markers that would be narrated
+  ("forty-seven") mid-sentence. Both now stripped deterministically at
+  extraction; counts recorded in manifest QA
+  (`epub_header_pattern`/`epub_headers_removed`/`endnote_markers_stripped`).
+- Header detection: longest common prefix shared by ≥ 70 % of section
+  heads, ≥ 15 chars, ≥ 4 sections — chapters legitimately starting with the
+  same word never match. Fail-safe: a body is never emptied.
+- `[N]` markers: 1–3 digits only — bracketed years `[1918]` and editorial
+  notes `[From Pravda, …]` are preserved.
+- `vorpal fidelity` mirrors the same hygiene on the source side (read from
+  the workdir manifest QA), so the fidelity contract stays exact.
+
+### H-019 A/B kit (human listening check)
+
+`scratch/phase43_stitch_ab/{before,after}_phase43.wav` — same 3-paragraph
+passage from the v1 Introduction, real Kokoro on GPU, `blend_deep_steady`,
+~117 s each (RMS 0.056, peak < 0.8, no clipping). `before` = old chunker +
+hard cuts; `after` = Phase 43. Regenerate: `python scratch/phase43_stitch_ab.py`.
+Deviation from spec: Trotsky passage instead of Firestone excerpt — the
+artifact was observed on exactly this prose, strictly more relevant.
+
+### Environment note (recurring, third time)
+
+`transformers` had drifted to 5.10.2 again; fixed in the live venv with
+`pip install "transformers>=4.40,<4.50"` → 4.49.0 before any synthesis.
+**If Kokoro raises `AlbertModel` import errors, check transformers first.**
+
+### Acceptance
+
+- 946 tests green; existing regression set untouched ✅
+- Multi-paragraph input → separate chunks per paragraph regardless of
+  length ✅ (test)
+- Long paragraph → sentence-boundary splits only, never mid-sentence ✅ (test)
+- Single sentence > max_chars → one intact oversized chunk, no truncation ✅ (test)
+- Crossfade of two known WAVs → length `len_a + len_b − crossfade_samples`,
+  valid WAV, no clipping, monotone blend ramp ✅ (test)
+- Paragraph-gap silence unchanged; `--crossfade-ms 0` restores old
+  behavior exactly ✅ (tests)
+- EPUB hygiene: headers/markers stripped end-to-end, years/editorial notes
+  preserved, fidelity mirror scores 1.0 ✅ (tests)
+- **(human, H-019)** before/after listening verdict — filed, clips on disk ✅
+- No money spent, no remote push ✅
+
+### Notes / deliberate scope choices
+
+- The play pipeline's `_assemble_chapter_wav` (multi-voice) still uses hard
+  joins — speaker-turn pauses (700 ms) dominate there; flagged as a
+  follow-up candidate, not silently changed.
+- Chapter WAV staleness is unchanged (existence-based): re-stitching an
+  already-assembled chapter requires deleting `chapters/*.wav` (cheap —
+  chunk cache is untouched). This is why Phase 44 deletes the 4 pre-fix v1
+  chapter WAVs.
+- Roadmap's Phase 43 names its human item H-019 and Phase 46 *also* says
+  H-019 for the v5 OCR verdict — numbering collision in the spec. H-019 is
+  taken by this phase; Phase 46's OCR verdict will be H-020 if needed.
 
 ## Phase 42 acceptance results
 

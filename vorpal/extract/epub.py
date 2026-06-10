@@ -209,6 +209,100 @@ def _href_base(href: str) -> str:
     return base.lstrip("/")
 
 
+# ── narration hygiene (Phase 43) ──────────────────────────────────────────
+# Web-sourced EPUBs (e.g. marxists.org conversions) carry two kinds of
+# non-body text that would be narrated verbatim: a page-header line repeated
+# at the top of every spine item, and inline endnote markers like "[47]"
+# (spoken as "forty-seven" mid-sentence). Both are stripped deterministically
+# and counted in QA — mirroring the PDF path's boilerplate/footnote-marker
+# hygiene. `qa/fidelity.py` applies the same rules to the source side so the
+# fidelity contract stays exact.
+
+# Inline endnote markers: [3], [47], [123] — but not [1918] (years) and not
+# textual notes like "[From Pravda, ...]".
+_ENDNOTE_MARKER_RE = re.compile(r"\[\d{1,3}\]")
+
+# A repeated-header candidate must share at least this long a prefix and
+# appear at the top of at least this fraction of sections.
+_HEADER_MIN_PREFIX = 15
+_HEADER_MIN_FRACTION = 0.7
+_HEADER_MIN_SECTIONS = 4
+
+
+def strip_endnote_markers(text: str) -> str:
+    """Remove inline [N] endnote markers (1–3 digits)."""
+    return _ENDNOTE_MARKER_RE.sub("", text)
+
+
+def _common_prefix_len(a: str, b: str) -> int:
+    n = min(len(a), len(b))
+    i = 0
+    while i < n and a[i] == b[i]:
+        i += 1
+    return i
+
+
+# How many leading paragraphs of each section are scanned for the header
+# (the header may follow a chapter heading rather than open the body).
+_HEADER_SCAN_PARAGRAPHS = 3
+
+
+def detect_repeated_header(bodies: list) -> "str | None":
+    """Find a header line repeated near the top of most section bodies.
+
+    Scans the first few paragraphs of each body; returns the longest prefix
+    shared by ≥ 70% of sections (≥ 15 chars, ≥ 4 sections), or None.  The
+    prefix is the stable part of e.g.
+    "Leon Trotsky: 1918 - How The Revolution Armed/Volume I (<varies>)".
+    """
+    heads = []          # per body: its leading paragraphs
+    for b in bodies:
+        if not b.strip():
+            continue
+        paras = [p.strip() for p in re.split(r"\n{2,}", b) if p.strip()]
+        heads.append(paras[:_HEADER_SCAN_PARAGRAPHS])
+    if len(heads) < _HEADER_MIN_SECTIONS:
+        return None
+
+    best_pattern, best_count = None, 0
+    seen = set()
+    for head in heads:
+        for ref in head:
+            key = ref[:_HEADER_MIN_PREFIX * 2]
+            if key in seen:
+                continue
+            seen.add(key)
+            # For each body, the best LCP any of its leading paragraphs
+            # shares with the reference (count each body at most once).
+            lcps = []
+            for other in heads:
+                n = max((_common_prefix_len(ref, p) for p in other),
+                        default=0)
+                if n >= _HEADER_MIN_PREFIX:
+                    lcps.append(n)
+            if len(lcps) > best_count and len(lcps) >= max(
+                    _HEADER_MIN_SECTIONS,
+                    int(_HEADER_MIN_FRACTION * len(heads))):
+                best_count = len(lcps)
+                best_pattern = ref[:min(lcps)]
+    return best_pattern
+
+
+def strip_repeated_headers(body: str, pattern: str) -> "tuple[str, int]":
+    """Drop every paragraph starting with the header pattern.
+
+    Never empties a body: if all paragraphs match, the body is returned
+    unchanged (fail-safe — better to narrate a header than nothing).
+    Returns (new_body, n_removed).
+    """
+    paragraphs = re.split(r"\n{2,}", body)
+    kept = [p for p in paragraphs if not p.strip().startswith(pattern)]
+    n_removed = len(paragraphs) - len(kept)
+    if not any(p.strip() for p in kept):
+        return body, 0
+    return "\n\n".join(kept), n_removed
+
+
 def _toc_to_spine_map(spine_hrefs: list, toc_entries: list) -> dict:
     """Map spine index → title for every TOC entry that can be matched."""
     result = {}
@@ -285,11 +379,27 @@ def extract_epub(epub_path: Path) -> dict:
             if spine_texts.get(href, "").strip()
         ]
 
+    # Narration hygiene: strip repeated page headers + inline endnote markers
+    bodies = ["\n\n".join(parts).strip() for _, parts in raw_sections]
+    header_pattern = detect_repeated_header(bodies)
+    headers_removed = 0
+    markers_stripped = 0
+    cleaned_bodies = []
+    for body in bodies:
+        if header_pattern:
+            body, n = strip_repeated_headers(body, header_pattern)
+            headers_removed += n
+        n_markers = len(_ENDNOTE_MARKER_RE.findall(body))
+        if n_markers:
+            body = strip_endnote_markers(body)
+            markers_stripped += n_markers
+        cleaned_bodies.append(body)
+
     # Build section dicts
     sections = []
     chapter_no = 0
-    for idx, (title, parts) in enumerate(raw_sections):
-        body = "\n\n".join(parts).strip()
+    for idx, (title, _) in enumerate(raw_sections):
+        body = cleaned_bodies[idx]
         words = len(body.split())
         kind = _classify_title(title)
         include = kind == "chapter"
@@ -325,6 +435,9 @@ def extract_epub(epub_path: Path) -> dict:
         "toc_entries": len(toc_entries),
         "sections_produced": len(sections),
         "chapter_source": "spine",
+        "epub_header_pattern": header_pattern or "",
+        "epub_headers_removed": headers_removed,
+        "endnote_markers_stripped": markers_stripped,
     }
 
     return {
