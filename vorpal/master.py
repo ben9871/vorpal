@@ -35,7 +35,8 @@ class LoudnessResult:
 # ── ffmpeg helpers ────────────────────────────────────────────────────────
 
 def _run_ffmpeg(cmd: list, step_name: str) -> subprocess.CompletedProcess:
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            encoding='utf-8', errors='replace')
     if result.returncode != 0:
         raise RuntimeError(
             f"ffmpeg failed at '{step_name}':\n{result.stderr[-600:]}"
@@ -73,7 +74,7 @@ def _loudnorm_measure(wav_path: Path, ffmpeg: str,
     result = subprocess.run(
         [ffmpeg, "-y", "-nostdin", "-i", str(wav_path),
          "-filter:a", filter_str, "-f", "null", "-"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding='utf-8', errors='replace',
     )
     return _parse_loudnorm_json(result.stderr)
 
@@ -566,7 +567,7 @@ def _check_m4b_chapters(m4b_path: Path, expected_count: int) -> dict:
     result = subprocess.run(
         [ffprobe, "-v", "quiet", "-print_format", "json",
          "-show_chapters", str(m4b_path)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding='utf-8', errors='replace',
     )
     if result.returncode != 0:
         return {"ok": False, "error": f"ffprobe failed: {result.stderr[-200:]}"}

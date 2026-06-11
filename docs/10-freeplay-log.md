@@ -6,6 +6,14 @@ project's own Jabberwocky name.
 
 One or two sentences per entry is enough — the point is a brief honest note,
 not a report. The operator reads this out of genuine curiosity.
+
+## Phase 43 — 2026-06-10
+Wrote `playground/the_cheshire_crossfade.txt` — the Cheshire Cat as
+literature's first crossfade (tail-first vanishing, grin held back like a
+`pending_tail` and flushed at the end of the chapter), with the Queen's
+"off with its head" as the hard-cut school of editing this phase retired.
+At every instant of his fade the sum of cat-that-was and cat-to-come is
+exactly one whole cat: equal-sum ramps, no clipping.
 There is no wrong entry.
 
 ---

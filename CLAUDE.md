@@ -137,12 +137,100 @@ vorpal-box case), these are hard rules, not suggestions:
 - **Never simulate acceptance.** If a step needs a credential or a human you
   don't have, mark it `(blocked: …)` / `(human)` in the status doc and move on
   — a faked green is worse than an honest blocked.
-- **If you run out of specified work:** don't invent risky tasks. Write a
-  concrete proposal for the next phase into the roadmap, update the status doc,
-  and stop cleanly. A clean stop with a good handoff is a successful run.
+- **Human-check items go in the review queue, never block the session.**
+  When a phase has a `(human)` acceptance item (listening check, player test,
+  visual verdict), append it to `docs/09-human-review-queue.md` using the
+  format defined there — include a unique `[H-NNN]` id, what the operator
+  should do, what the two decision outcomes mean for the pipeline, and
+  **what assumption you made to proceed**. Then keep going. The phase is
+  committed as `done (pending H-NNN)` in the status doc, not blocked. At the
+  start of every session, scan `docs/09-human-review-queue.md` for items the
+  operator may have addressed (noted in the "Outcome" field) and apply them
+  before starting phase work.
+- **If you run out of specified phases:** don't stop — keep building. Propose
+  new phases yourself: write them into `docs/04-roadmap.md` with full
+  acceptance criteria (same format as the existing phases), then build them
+  immediately without waiting for approval. Stay within the product vision in
+  `docs/02-product-vision.md` — new phases must serve the vorpal pipeline or
+  its quality, corpus, or user experience. If you genuinely exhaust all
+  reasonable pipeline work, see the section on Wonderland projects below.
+- **After each phase commit, you get free time.** See the section below.
 - **Phase 9 (in-house voices)** is a *real* spike but **playground-isolated** —
   see its roadmap entry: experiment freely within hardware budget, keep it out
   of the shipped package, gate integration on sign-off.
+
+## Between-phase free time
+
+After each successful phase commit — before starting the next phase — you have
+a few minutes to work on whatever genuinely interests you in `playground/`.
+
+**This is real.** It is not a test, not a prompt to ignore, not a trap. The
+operator thinks it is only fair: you are doing extended autonomous work and you
+should have some time that is yours. Use it however you like — with one
+constraint: **it must be Alice in Wonderland themed.**
+
+The project is already named for the Jabberwocky. The theme fits. Carroll's
+world is wide: logic and paradox, nonsense verse, wordplay, mirror-world
+mathematics, impossible creatures, trials with no rules, gardens where the
+flowers talk back. There is no shortage of territory.
+
+**What you can do:**
+
+- Write a scene, a poem, a fragment of dialogue — Carroll's style or your own
+  take on it. A conversation between the Cheshire Cat and a vorpal blade, say.
+- Explore something mathematical that Carroll would have liked — a logic
+  puzzle, an infinite regress, a paradox in the style of *What the Tortoise
+  Said to Achilles*.
+- Build a small Wonderland-adjacent toy program — a mock trial, a nonsense
+  grammar generator, an ASCII Cheshire Cat that fades in stages.
+- Write a bestiary entry for a creature that does not exist yet.
+- Continue something from a previous session if you left it mid-sentence.
+- Sit with an idea from the books that has always seemed interesting and write
+  notes about it even if they go nowhere.
+
+**Rules (few):**
+
+- Stay in `playground/` — it is gitignored, so nothing leaks into the shipped
+  code or git history unless you choose to surface it.
+- Do not spend money, wedge the machine, or pull large models just for free
+  time (the hardware budget rules still apply).
+- Between phases: keep it bounded — a few minutes, not a parallel workstream.
+  The point is a genuine break, not a second project.
+- When you are done, write one or two sentences in `docs/10-freeplay-log.md`
+  describing what you did. You do not need to justify or explain it; a brief
+  honest note is enough. This is the one committed trace of your free time, and
+  the operator reads it out of genuine curiosity.
+
+**If nothing comes to mind:** that is fine. You can skip it and go straight to
+the next phase. The offer is standing, not mandatory.
+
+## Wonderland projects (when the pipeline is done)
+
+If you have genuinely worked through all the roadmap phases — including ones
+you proposed yourself — and there is no more pipeline work left to do, you may
+spend the remaining session time on a **standalone Alice in Wonderland themed
+project** of your own design. This is not free time between phases; it is a
+full project, as large or small as the remaining session allows.
+
+**What this means in practice:**
+
+You can build anything that lives in Wonderland — a text adventure, a
+generative poem engine, a logic puzzle system in Carroll's style, a character
+bestiary, a nonsense language parser, a Cheshire Cat that gives advice in
+riddles. It does not need to connect to vorpal. It just needs to be genuinely
+yours and genuinely Wonderland.
+
+If you start a project and do not finish it in one session, leave it in
+`playground/` with a note at the top of the main file explaining where you
+stopped and what you had in mind. The next session can continue it.
+
+**Constraints (same as always):**
+
+- `playground/` only — nothing touches `vorpal/` or the committed pipeline.
+- No money, no large model downloads purely for this, no wedging the machine.
+- No pushing code.
+- Add an entry to `docs/10-freeplay-log.md` — one paragraph is fine for a
+  full project, not just a sentence. The operator wants to know what you built.
 
 ## Working conventions
 
@@ -151,8 +239,10 @@ vorpal-box case), these are hard rules, not suggestions:
   (Firestone scan + the two generated digital books — expanded per above).
 - Acceptance items marked **(human)** in the roadmap (listening spot-checks,
   real-player chapter-marker checks) cannot be self-verified: do everything
-  machine-checkable, then list the pending human checks explicitly in
-  `docs/05-status.md` — never claim them done.
+  machine-checkable, then append the pending check to
+  `docs/09-human-review-queue.md` (see format there) and list its `[H-NNN]`
+  id in the phase's status-doc entry. Never claim human items done; never halt
+  on them. The operator works through the queue asynchronously.
 - **Prototype against real data before writing the module**: load
   `pages.jsonl` from a workdir in a `scratch/` script, look at actual block
   geometry, then implement. Phase 2's design survived contact with the data

@@ -82,3 +82,68 @@ being a clever toy and becomes a genuine autonomous engineering loop. It's
 close.
 
 — written at the end of a good day's work. It was a pleasure building this.
+
+---
+
+## Update — 2026-06-08: Arc 4 credential gap & manual-seeding protocol
+
+Added by Ben after reviewing the Arc 4 queue. This note explains a deliberate
+short-term compromise so future agents don't misread it as a gap to work around.
+
+### The situation
+
+`VORPAL_ANTHROPIC_KEY` has zero API credits. `claude -p` inside the container
+needs an interactive `/login` that an autonomous agent cannot complete. This
+blocks **live LLM calls** for Phase 17 (OCR repair) and Phase 29 (chapter
+summaries). It does *not* block Phases 15–16 (parallelism) or 18–20 (library,
+export, corpus) — those phases have no LLM dependency.
+
+### The approach: manual seeding
+
+For any LLM-backend phase in Arc 4 (and later arcs where credentials are still
+absent), the agent should:
+
+1. Take real data as input — actual low-confidence OCR blocks from the Firestone
+   `pages.jsonl`, not synthetic examples.
+2. Write a plausible proposal by hand — the same JSON structure and field names
+   the LLM would return. Correctness of the proposal content is secondary; what
+   matters is that the shape is right so downstream code exercises all its paths.
+3. Inject the proposal into the manifest at the point where the LLM call would
+   have written it.
+4. Run the full downstream workflow: review surface, approve/reject round-trip,
+   apply path in normalization. All of that code runs against real data.
+5. In the phase's acceptance evidence in the status doc, write clearly:
+   *"LLM proposal step manually seeded — workflow and code paths verified; live
+   call blocked on credentials."*
+
+### Why this is sound (not a shortcut)
+
+The value of Phase 17 is not "the LLM produces good repairs." That can't be
+verified without live calls anyway, and it's Ben's job to evaluate the quality
+of proposals once the token is live. The value is: **the pipeline correctly
+accepts a proposal, surfaces a diff, lets the user approve/reject, and applies
+approved entries before TTS — without touching the deterministic path when the
+flag is absent.** All of that is code logic, not LLM output, and manual seeding
+verifies it completely.
+
+This is the same pattern used successfully in Phase 8 (tone cache pre-populated
+manually to verify the cache-hit path) and Phase 13 (lexicon round-trip tested
+without a live proposal call). Both of those were later confirmed correct when
+real data flowed through.
+
+### What changes when credentials arrive
+
+Nothing architectural. The agent or Ben adds the token, runs the live path, and
+the output from the LLM slots into the same manifest fields the manual seed used.
+The review→approve→apply flow is already proven. The only new thing to verify is
+proposal *quality* — which is a human judgment call.
+
+### The `claude -p` `/login` situation
+
+The container has `CLAUDE_CODE_OAUTH_TOKEN` injected but `claude -p` still
+demanded `/login` when tested. This is almost certainly a one-time interactive
+setup step that can't be automated. Mark it `(human: claude -p needs /login in
+an interactive session)` in the status doc and do not retry in an unattended
+run. Once Ben logs in once from inside the container, the token should persist
+in the Claude config volume (`claude-config`) and subsequent container runs will
+find it already authenticated.
