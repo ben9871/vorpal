@@ -26,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
-docs = ["sphinx>=7", "furo", "myst-nb>=4", "sphinx-autodoc-typehints"]
+docs = ["sphinx>=7", "furo", "myst-nb>=1.0", "sphinx-autodoc-typehints"]
 # LLM-pass features (tone tagging) — optional: the deterministic core never
 # depends on a model. Baked into the vorpal-box image; on the host:
 # pip install -e .[llm]

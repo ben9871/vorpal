@@ -31,7 +31,7 @@ jobs:
       - name: Install docs dependencies
         run: |
           # Sphinx + theme + notebook renderer
-          pip install sphinx furo "myst-nb>=4" sphinx-autodoc-typehints
+          pip install sphinx furo "myst-nb>=1.0" sphinx-autodoc-typehints
           # Lightweight runtime deps autodoc needs at import time.
           # Heavy deps (torch, kokoro, cv2) are imported lazily inside functions.
           pip install numpy rapidfuzz pysbd PyMuPDF pytesseract pillow soundfile
