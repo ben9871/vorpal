@@ -1,11 +1,12 @@
 # Theatrical Plays
 
-```{raw} html
-<figure class="wl-illustration">
-  <img src="_static/images/mad_hatter.png"
-       alt="John Tenniel's illustration of the Mad Hatter's Tea Party">
-  <figcaption>Tenniel, 1865 — public domain</figcaption>
-</figure>
+```{figure} images/mad_hatter.png
+:alt: John Tenniel's illustration of the Mad Hatter's Tea Party
+:width: 200px
+:align: right
+:class: wl-illustration
+
+Tenniel, 1865 — public domain
 ```
 
 > "Then it wasn't very civil of you to offer it," said Alice angrily.

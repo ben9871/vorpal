@@ -1,11 +1,12 @@
 # Voices
 
-```{raw} html
-<figure class="wl-illustration">
-  <img src="_static/images/cheshire.jpg"
-       alt="John Tenniel's illustration of Alice and the Cheshire Cat">
-  <figcaption>Tenniel, 1865 — public domain</figcaption>
-</figure>
+```{figure} images/cheshire.jpg
+:alt: John Tenniel's illustration of Alice and the Cheshire Cat
+:width: 200px
+:align: right
+:class: wl-illustration
+
+Tenniel, 1865 — public domain
 ```
 
 > "Who are *you*?" said the Caterpillar.
