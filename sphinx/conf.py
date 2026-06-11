@@ -39,6 +39,13 @@ html_theme_options = {
 
 html_css_files = ["wonderland.css"]
 
+# Mock heavy optional imports so autodoc works without a GPU environment
+autodoc_mock_imports = [
+    "torch", "kokoro", "misaki", "transformers",
+    "cv2", "soundfile", "scipy", "anthropic",
+    "fastapi", "uvicorn", "httpx",
+]
+
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,

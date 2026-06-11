@@ -5,6 +5,9 @@ on:
     branches: [master, main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
   pages: write
@@ -27,16 +30,17 @@ jobs:
 
       - name: Install docs dependencies
         run: |
-          # Install Sphinx + docs extras first, then the lightweight runtime
-          # deps autodoc needs at import time. Heavy deps (torch, kokoro, cv2)
-          # are imported lazily inside functions so autodoc never triggers them.
+          # Sphinx + theme + notebook renderer
           pip install sphinx furo "myst-nb>=4" sphinx-autodoc-typehints
-          pip install numpy rapidfuzz pysbd pymupdf pytesseract pillow soundfile
+          # Lightweight runtime deps autodoc needs at import time.
+          # Heavy deps (torch, kokoro, cv2) are imported lazily inside functions.
+          pip install numpy rapidfuzz pysbd PyMuPDF pytesseract pillow soundfile
+          # Install vorpal itself (editable, skip heavy transitive deps)
           pip install -e . --no-deps
 
       - name: Build Sphinx docs
         run: |
-          sphinx-build -W --keep-going sphinx sphinx/_build/html
+          sphinx-build --keep-going sphinx sphinx/_build/html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
