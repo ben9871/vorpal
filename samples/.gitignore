@@ -1,0 +1,7 @@
+# Override root gitignore — clips are small enough to commit
+!*.wav
+!*.mp3
+
+# Full audiobooks are still too large
+*.m4b
+*.m4a
