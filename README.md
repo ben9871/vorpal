@@ -1,24 +1,70 @@
 # vorpal — PDF / EPUB / TXT → Audiobook
 
-Converts book-shaped text into navigable `.m4b` audiobooks with TTS voice
-models.  One two, one two, and through and through: the jabberwocky in
-question is running headers, OCR noise, fake chapters, and screen-reader
-monotone that a naïve PDF→TTS pipe narrates at you.
+**vorpal** converts book-shaped text into navigable `.m4b` audiobooks using
+local, open-weight TTS models. Point it at a scanned paperback, a Gutenberg
+EPUB, or a born-digital academic PDF and get back a clean audiobook with
+correct chapters, a consistent high-quality voice, and nothing spurious read
+aloud — no running headers, no page numbers, no OCR debris.
 
-> **Status: Phases 0–5 complete** (0.x personal tooling — no release).
-> The full pipeline: PDF / EPUB / TXT input → manifest-driven build with
-> hash-based resume → per-page digital/OCR extraction → outline → printed-TOC →
-> heuristic chapter detection → `vorpal review` checkpoint → prosody-aware
-> normalization → cached TTS synthesis → loudness-normalized M4B with chapter
-> markers.  Next: Arc 2 — voice suite & expressive narration.
-> Plan lives in [`docs/`](docs/):
->
-> 1. [Audit of v0](docs/01-audit.md) — what was wrong, with evidence
-> 2. [Product vision](docs/02-product-vision.md) — what we're building (voice cloning: dropped)
-> 3. [Architecture](docs/03-architecture.md) — the manifest-driven 8-stage design
-> 4. [Roadmap](docs/04-roadmap.md) — phases with acceptance criteria
-> 5. [**Status & handoff**](docs/05-status.md) — where we are, what's next
-> 6. [Ideation: expressive narration](docs/07-ideation.md) — voices, tone system, north star
+The name: it's the blade for the jabberwocky of OCR noise, fake chapters,
+and screen-reader monotone.
+
+> **Current state (June 2026):** 43 phases complete. The full pipeline is
+> production-ready — extract, segment, normalize, synthesize, master.
+> EPUBs, PDFs, and plain text all build cleanly. 11 curated voices including
+> blended narrators. Theatrical play mode complete — Shakespeare and Beckett
+> with per-character voice casting. In production: Trotsky's *Military
+> Writings* Vol. 1 (19h 16m, 38 chapters). Coming next: expressive narration
+> via LLM tone tagging and API TTS engines.
+
+---
+
+## New here? Start with the notebooks
+
+| Notebook | What it covers |
+|---|---|
+| [`notebooks/01_first_audiobook.ipynb`](notebooks/01_first_audiobook.ipynb) | Build your first audiobook end to end |
+| [`notebooks/02_voices.ipynb`](notebooks/02_voices.ipynb) | Explore the voice suite and blend recipes |
+| [`notebooks/03_manifest_and_pipeline.ipynb`](notebooks/03_manifest_and_pipeline.ipynb) | Understand the pipeline internals |
+
+For the big picture, read the docs in order:
+1. [What we're building and where it's going](docs/upcoming.md) — goals, what's done, what's next
+2. [Product vision](docs/02-product-vision.md) — the two design contracts
+3. [Architecture](docs/03-architecture.md) — the manifest-driven 8-stage design
+4. [Roadmap](docs/04-roadmap.md) — every phase with acceptance criteria
+5. [Current status](docs/05-status.md) — live state, what's next
+6. [Ideation: expressive narration](docs/07-ideation.md) — voices, tone system, north star
+
+---
+
+## What it does
+
+- **Any book-shaped PDF** — scanned or born-digital, two-page spreads, multi-column,
+  footnote-heavy. OCR with quality scoring, running-header removal, chapter detection
+  that reads the embedded outline before falling back to heuristics.
+- **EPUB and plain text** — no OCR needed; structure ships intact. Recommended for
+  Project Gutenberg and modern ebooks.
+- **Theatrical plays** — per-character voice casting. Feed it *Hamlet* or *Waiting
+  for Godot* and each character gets their own narrator voice.
+- **11 curated voices** — 8 single voices + 3 blended narrators. Run
+  `vorpal voices --sample` to audition them all before committing to a build.
+- **Proper mastering** — two-pass loudness normalization (EBU R128), chapter markers,
+  cover art, `.m4b` with full navigation, per-chapter MP3 side product.
+- **Resumable, reproducible** — content-addressed manifest. Re-running resumes from
+  the last clean stage; every stage is independently re-runnable.
+
+### Real-world example
+
+Trotsky's *Military Writings Vol. 1* (EPUB, 38 chapters, ~120,000 words):
+
+```sh
+vorpal build trotsky/military-writings-trotsky-v1.epub \
+  --voice blend_deep_steady \
+  --output trotsky_v1
+```
+
+→ `trotsky_v1.m4b` — 19 hours 16 minutes, 38 chapter markers, 569 MB.
+Voice: Fenrir 55% + Michael 45% (deep, authoritative, steady).
 
 ---
 
