@@ -1,5 +1,9 @@
 # Advanced Features
 
+> "No, no! The adventures first — explanations take such a dreadful time."
+>
+> — Lewis Carroll, *Alice's Adventures in Wonderland*
+
 ## Draft mode — fast CPU preview
 
 `--draft` switches the TTS engine from Kokoro to Piper, a lightweight CPU-only

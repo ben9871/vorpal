@@ -1,5 +1,10 @@
 # Getting Started
 
+> "Begin at the beginning," the King said, gravely, "and go on till you come
+> to the end: then stop."
+>
+> — Lewis Carroll, *Alice's Adventures in Wonderland*
+
 ## Requirements
 
 - **Python 3.10–3.12** (not 3.13 — the Kokoro TTS engine caps at 3.12)

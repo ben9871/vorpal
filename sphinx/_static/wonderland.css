@@ -1,0 +1,93 @@
+/* ── Wonderland theme for vorpal docs ─────────────────────────────────────── */
+
+/* Brand colours — teal taken from Tenniel's palette */
+:root {
+    --wl-teal:       #1a7a78;
+    --wl-teal-light: #2ea8a5;
+    --wl-gold:       #c9902a;
+    --wl-ink:        #1c1c2e;
+}
+
+/* Override Furo brand colour */
+[data-theme="light"] {
+    --color-brand-primary:     var(--wl-teal);
+    --color-brand-content:     var(--wl-teal);
+    --color-highlight-on-target: #e8f7f7;
+}
+[data-theme="dark"] {
+    --color-brand-primary:     var(--wl-teal-light);
+    --color-brand-content:     var(--wl-teal-light);
+    --color-highlight-on-target: #0d2e2e;
+}
+
+/* ── Epigraph / blockquote styling ─────────────────────────────────────────── */
+blockquote {
+    border-left: 3px solid var(--wl-gold);
+    padding: 0.6em 1.2em;
+    margin: 1.4em 0;
+    font-style: italic;
+    color: var(--color-foreground-secondary);
+    background: transparent;
+}
+
+blockquote .attribution {
+    font-style: normal;
+    font-size: 0.85em;
+    color: var(--color-foreground-muted);
+    margin-top: 0.4em;
+}
+
+/* Sphinx epigraph directive */
+.epigraph {
+    border-left: 3px solid var(--wl-gold);
+    padding: 0.6em 1.2em;
+    margin: 1.6em 2em;
+    font-style: italic;
+}
+.epigraph .attribution {
+    font-style: normal;
+    font-size: 0.85em;
+    color: var(--color-foreground-muted);
+}
+
+/* ── Illustration figures ───────────────────────────────────────────────────── */
+.wl-illustration {
+    float: right;
+    clear: right;
+    margin: 0 0 1.2em 1.8em;
+    max-width: 200px;
+}
+.wl-illustration img {
+    width: 100%;
+    border-radius: 4px;
+    opacity: 0.88;
+    filter: sepia(0.12) contrast(1.05);
+    transition: opacity 0.2s ease;
+}
+.wl-illustration img:hover {
+    opacity: 1;
+}
+.wl-illustration figcaption {
+    font-size: 0.72em;
+    color: var(--color-foreground-muted);
+    text-align: center;
+    margin-top: 0.3em;
+    font-style: italic;
+}
+
+/* On narrow screens, don't float — stack inline */
+@media (max-width: 640px) {
+    .wl-illustration {
+        float: none;
+        display: block;
+        margin: 1em auto;
+        max-width: 240px;
+    }
+}
+
+/* ── Sidebar / nav accent ───────────────────────────────────────────────────── */
+.sidebar-brand-tagline {
+    font-style: italic;
+    font-size: 0.78em;
+    color: var(--color-foreground-muted);
+}

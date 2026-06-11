@@ -1,5 +1,10 @@
 # CLI Reference
 
+> "Would you tell me, please, which way I ought to go from here?"
+> "That depends a good deal on where you want to get to," said the Cat.
+>
+> — Lewis Carroll, *Alice's Adventures in Wonderland*
+
 All commands are invoked as `vorpal <command> [options]`.
 
 ---

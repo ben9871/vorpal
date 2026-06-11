@@ -1,5 +1,18 @@
 # Voices
 
+```{raw} html
+<figure class="wl-illustration">
+  <img src="_static/images/cheshire.jpg"
+       alt="John Tenniel's illustration of Alice and the Cheshire Cat">
+  <figcaption>Tenniel, 1865 — public domain</figcaption>
+</figure>
+```
+
+> "Who are *you*?" said the Caterpillar.
+> This was not an encouraging opening for a conversation.
+>
+> — Lewis Carroll, *Alice's Adventures in Wonderland*
+
 vorpal ships with 11 curated voices: 8 single Kokoro voices and 3 blend voices.
 All are local — no cloud, no account, no per-character cost.
 

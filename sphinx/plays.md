@@ -1,5 +1,18 @@
 # Theatrical Plays
 
+```{raw} html
+<figure class="wl-illustration">
+  <img src="_static/images/mad_hatter.png"
+       alt="John Tenniel's illustration of the Mad Hatter's Tea Party">
+  <figcaption>Tenniel, 1865 — public domain</figcaption>
+</figure>
+```
+
+> "Then it wasn't very civil of you to offer it," said Alice angrily.
+> "It's very easy to take *more* than nothing."
+>
+> — Lewis Carroll, *Alice's Adventures in Wonderland*
+
 vorpal has a dedicated mode for stage plays (`vorpal play`) that assigns a
 distinct narrator voice to each character. Feed it *Hamlet* or *Waiting for
 Godot* and each character speaks in their own voice.

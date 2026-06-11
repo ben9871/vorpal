@@ -1,5 +1,9 @@
 # Pipeline Architecture
 
+> "It's a poor sort of memory that only works backwards."
+>
+> — Lewis Carroll, *Through the Looking-Glass*
+
 vorpal's pipeline is **manifest-driven** and **content-addressed**. Every stage
 reads from and writes to a single JSON manifest (`book.json`). A stage re-runs
 only when its inputs have changed — identified by content hash, not timestamp.
