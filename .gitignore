@@ -21,6 +21,10 @@ voices-v*.bin
 *.jpg
 *.png
 
+# One-off source material and legacy scripts — kept locally, not in git
+firestone/
+miscellaneous/
+
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
 
