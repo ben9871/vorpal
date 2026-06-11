@@ -1,13 +1,13 @@
 vorpal — PDF / EPUB / TXT → Audiobook
 ======================================
 
-.. raw:: html
+.. figure:: images/jabberwocky.jpg
+   :alt: John Tenniel's illustration of the Jabberwock (1871)
+   :width: 280px
+   :align: center
+   :class: wl-hero-img
 
-   <figure class="wl-hero">
-     <img src="_static/images/jabberwocky.jpg"
-          alt="John Tenniel's illustration of the Jabberwock (1871)">
-     <figcaption>John Tenniel, <em>Jabberwocky</em> (1871) — public domain</figcaption>
-   </figure>
+   John Tenniel, *Jabberwocky* (1871) — public domain
 
 .. epigraph::
 

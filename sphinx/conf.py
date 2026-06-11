@@ -1,5 +1,7 @@
 import sys
 import os
+import shutil
+import pathlib
 
 sys.path.insert(0, os.path.abspath(".."))
 
@@ -12,7 +14,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "myst_parser",
+    "myst_nb",
 ]
 
 templates_path = ["_templates"]
@@ -24,29 +26,18 @@ html_title = "vorpal"
 
 html_theme_options = {
     "light_css_variables": {
-        "color-brand-primary": "#1a7a78",
-        "color-brand-content": "#1a7a78",
+        "color-brand-primary": "#5c2d91",
+        "color-brand-content": "#5c2d91",
     },
     "dark_css_variables": {
-        "color-brand-primary": "#2ea8a5",
-        "color-brand-content": "#2ea8a5",
+        "color-brand-primary": "#c39bd3",
+        "color-brand-content": "#c39bd3",
     },
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
-    "top_of_page_buttons": ["view"],
 }
 
 html_css_files = ["wonderland.css"]
-
-html_sidebars = {
-    "**": [
-        "sidebar/brand.html",
-        "sidebar/search.html",
-        "sidebar/scroll-start.html",
-        "sidebar/navigation.html",
-        "sidebar/scroll-end.html",
-    ]
-}
 
 autodoc_default_options = {
     "members": True,
@@ -62,6 +53,23 @@ napoleon_include_init_with_doc = True
 
 myst_enable_extensions = ["colon_fence", "deflist"]
 
+# myst-nb: render stored outputs, never re-execute notebooks
+nb_execution_mode = "off"
+nb_execution_timeout = 0
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
+
+# Copy notebooks from ../notebooks/ into sphinx/notebooks/ at build time
+def copy_notebooks(app):
+    src = pathlib.Path(app.srcdir).parent / "notebooks"
+    dst = pathlib.Path(app.srcdir) / "notebooks"
+    if src.exists():
+        dst.mkdir(exist_ok=True)
+        for nb in sorted(src.glob("*.ipynb")):
+            shutil.copy2(nb, dst / nb.name)
+
+
+def setup(app):
+    app.connect("builder-inited", copy_notebooks)

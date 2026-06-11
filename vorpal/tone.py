@@ -13,6 +13,7 @@ Two backends (see CLAUDE.md §Credentials):
   - "api"  (opt-in: --tone-backend api) — direct Anthropic SDK with
     VORPAL_ANTHROPIC_KEY. Pay-as-you-go; unlocks the Batches API discount.
     Use when you'd rather bill tagging to the API console than the subscription.
+
 Everything behind --expressive; the deterministic no-tone build is untouched.
 """
 
@@ -249,19 +250,11 @@ def tag_chapter(body: str, title: str, cache_dir: Path,
     """Tag paragraphs in a chapter and cache the result.
 
     Returns:
-        {
-          "chapter_title": str,
-          "model": str,
-          "prompt_version": str,
-          "backend": str,
-          "tones": ["neutral", "somber", ...],   # one per paragraph
-          "paragraphs": [{idx, tone, confidence, text_preview}, ...],
-          "cache_hit": bool,
-        }
-
-    backend "cli" (default) uses the subscription via `claude -p`; "api" uses
-    the pay-as-you-go SDK with VORPAL_ANTHROPIC_KEY. Raises RuntimeError if the
-    chosen backend is unavailable.
+        dict: Keys are chapter_title, model, prompt_version, backend,
+        tones (list of tone strings, one per paragraph), paragraphs
+        (list of {idx, tone, confidence, text_preview} dicts), and cache_hit.
+        ``backend="cli"`` uses the subscription via ``claude -p``; ``"api"``
+        uses the pay-as-you-go SDK with VORPAL_ANTHROPIC_KEY.
     """
     paragraphs = split_paragraphs(body)
     if not paragraphs:

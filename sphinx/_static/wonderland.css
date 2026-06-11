@@ -47,19 +47,23 @@ h1, h2, h3 {
 h1 { font-style: italic; }
 
 /* ── Hero illustration on the landing page ───────────────────────────────── */
+/* Sphinx native figure: class goes on <figure>, not <img> */
+figure.wl-hero-img,
 .wl-hero {
     display: block;
-    margin: 0.2em auto 1.6em auto;
+    margin: 0.6em auto 1.8em auto;
     text-align: center;
 }
+figure.wl-hero-img img,
 .wl-hero img {
-    max-width: 300px;
+    max-width: 280px;
     width: 100%;
     border: 1px solid #c9902a55;
     border-radius: 3px;
     filter: sepia(0.15) contrast(1.05);
     box-shadow: 0 4px 18px rgba(0,0,0,0.18);
 }
+figure.wl-hero-img figcaption,
 .wl-hero figcaption {
     font-size: 0.72em;
     font-style: italic;

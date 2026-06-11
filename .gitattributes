@@ -1,0 +1,34 @@
+# Normalize line endings: text files get LF in the repo, checked out as
+# platform-native (CRLF on Windows, LF elsewhere).
+* text=auto
+
+# Force LF for files that must be consistent across platforms
+*.py    text eol=lf
+*.md    text eol=lf
+*.rst   text eol=lf
+*.ipynb text eol=lf
+*.toml  text eol=lf
+*.cfg   text eol=lf
+*.ini   text eol=lf
+*.txt   text eol=lf
+*.sh    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.json  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+
+# Binary files — never touch line endings
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.wav   binary
+*.mp3   binary
+*.m4b   binary
+*.m4a   binary
+*.pdf   binary
+*.onnx  binary
+*.pt    binary
+*.pth   binary

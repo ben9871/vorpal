@@ -29,8 +29,9 @@ miscellaneous/
 .claude/
 docker/
 
-# Sphinx build output
+# Sphinx build output and auto-copied notebooks (generated at build time)
 sphinx/_build/
+sphinx/notebooks/
 
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
