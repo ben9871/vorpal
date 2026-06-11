@@ -27,13 +27,12 @@ jobs:
 
       - name: Install docs dependencies
         run: |
-          # Install only the lightweight subset needed for Sphinx:
-          # core package (editable, no heavy TTS deps) + docs extras.
-          # Heavy imports (torch, kokoro, cv2, pytesseract) are all inside
-          # functions so autodoc never triggers them.
-          pip install numpy rapidfuzz pysbd
-          pip install -e ".[docs]" --no-deps
-          pip install pymupdf pytesseract pillow soundfile
+          # Install Sphinx + docs extras first, then the lightweight runtime
+          # deps autodoc needs at import time. Heavy deps (torch, kokoro, cv2)
+          # are imported lazily inside functions so autodoc never triggers them.
+          pip install sphinx furo "myst-nb>=4" sphinx-autodoc-typehints
+          pip install numpy rapidfuzz pysbd pymupdf pytesseract pillow soundfile
+          pip install -e . --no-deps
 
       - name: Build Sphinx docs
         run: |
