@@ -33,6 +33,10 @@ docker/
 sphinx/_build/
 sphinx/notebooks/
 
+# Sphinx source images are committed (public domain illustrations for the docs)
+!sphinx/images/*.jpg
+!sphinx/images/*.png
+
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
 
