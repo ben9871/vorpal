@@ -1,56 +1,73 @@
-/* ── Wonderland theme for vorpal docs ─────────────────────────────────────── */
+/* ── Wonderland theme — vorpal docs ──────────────────────────────────────── */
 
-/* Brand colours — teal taken from Tenniel's palette */
-:root {
-    --wl-teal:       #1a7a78;
-    --wl-teal-light: #2ea8a5;
-    --wl-gold:       #c9902a;
-    --wl-ink:        #1c1c2e;
+/* Google Font: IM Fell English for headings (Victorian era) */
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&display=swap');
+
+/* ── Palette ──────────────────────────────────────────────────────────────── */
+/* Cheshire-purple primary; Queen-of-Hearts gold accent */
+body[data-theme=light] {
+    --color-brand-primary:      #5c2d91;   /* deep Cheshire purple */
+    --color-brand-content:      #5c2d91;
+    --color-sidebar-brand-text: #5c2d91;
+    --color-link:               #5c2d91;
+    --color-link-underline:     #c9902a44;
+    --wl-accent: #c9902a;
+    --wl-epigraph-bg: #fdf6ec;
+}
+body[data-theme=dark] {
+    --color-brand-primary:      #c39bd3;   /* pale lavender on dark */
+    --color-brand-content:      #c39bd3;
+    --color-link:               #c39bd3;
+    --wl-accent: #f0c060;
+    --wl-epigraph-bg: #1e1630;
+}
+/* Fallback for prefers-color-scheme when data-theme isn't set */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-brand-primary: #c39bd3;
+        --color-brand-content: #c39bd3;
+        --wl-accent: #f0c060;
+        --wl-epigraph-bg: #1e1630;
+    }
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        --color-brand-primary: #5c2d91;
+        --color-brand-content: #5c2d91;
+        --wl-accent: #c9902a;
+        --wl-epigraph-bg: #fdf6ec;
+    }
 }
 
-/* Override Furo brand colour */
-[data-theme="light"] {
-    --color-brand-primary:     var(--wl-teal);
-    --color-brand-content:     var(--wl-teal);
-    --color-highlight-on-target: #e8f7f7;
+/* ── Victorian serif headings ─────────────────────────────────────────────── */
+h1, h2, h3 {
+    font-family: 'IM Fell English', Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.01em;
 }
-[data-theme="dark"] {
-    --color-brand-primary:     var(--wl-teal-light);
-    --color-brand-content:     var(--wl-teal-light);
-    --color-highlight-on-target: #0d2e2e;
-}
+h1 { font-style: italic; }
 
-/* ── Epigraph / blockquote styling ─────────────────────────────────────────── */
-blockquote {
-    border-left: 3px solid var(--wl-gold);
-    padding: 0.6em 1.2em;
-    margin: 1.4em 0;
+/* ── Hero illustration on the landing page ───────────────────────────────── */
+.wl-hero {
+    display: block;
+    margin: 0.2em auto 1.6em auto;
+    text-align: center;
+}
+.wl-hero img {
+    max-width: 300px;
+    width: 100%;
+    border: 1px solid #c9902a55;
+    border-radius: 3px;
+    filter: sepia(0.15) contrast(1.05);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+}
+.wl-hero figcaption {
+    font-size: 0.72em;
     font-style: italic;
-    color: var(--color-foreground-secondary);
-    background: transparent;
-}
-
-blockquote .attribution {
-    font-style: normal;
-    font-size: 0.85em;
     color: var(--color-foreground-muted);
     margin-top: 0.4em;
 }
 
-/* Sphinx epigraph directive */
-.epigraph {
-    border-left: 3px solid var(--wl-gold);
-    padding: 0.6em 1.2em;
-    margin: 1.6em 2em;
-    font-style: italic;
-}
-.epigraph .attribution {
-    font-style: normal;
-    font-size: 0.85em;
-    color: var(--color-foreground-muted);
-}
-
-/* ── Illustration figures ───────────────────────────────────────────────────── */
+/* ── Inline floating illustrations (other pages) ─────────────────────────── */
 .wl-illustration {
     float: right;
     clear: right;
@@ -59,23 +76,20 @@ blockquote .attribution {
 }
 .wl-illustration img {
     width: 100%;
-    border-radius: 4px;
-    opacity: 0.88;
+    border: 1px solid #c9902a44;
+    border-radius: 3px;
     filter: sepia(0.12) contrast(1.05);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.14);
     transition: opacity 0.2s ease;
 }
-.wl-illustration img:hover {
-    opacity: 1;
-}
+.wl-illustration img:hover { opacity: 0.9; }
 .wl-illustration figcaption {
     font-size: 0.72em;
+    font-style: italic;
     color: var(--color-foreground-muted);
     text-align: center;
     margin-top: 0.3em;
-    font-style: italic;
 }
-
-/* On narrow screens, don't float — stack inline */
 @media (max-width: 640px) {
     .wl-illustration {
         float: none;
@@ -85,9 +99,42 @@ blockquote .attribution {
     }
 }
 
-/* ── Sidebar / nav accent ───────────────────────────────────────────────────── */
-.sidebar-brand-tagline {
+/* ── Epigraph / blockquote ───────────────────────────────────────────────── */
+blockquote {
+    border-left: 3px solid var(--wl-accent, #c9902a);
+    padding: 0.6em 1.2em;
+    margin: 1.4em 0;
     font-style: italic;
-    font-size: 0.78em;
+    background: var(--wl-epigraph-bg, transparent);
+    border-radius: 0 4px 4px 0;
+}
+blockquote p:last-child { margin-bottom: 0; }
+blockquote .attribution,
+blockquote p.attribution {
+    font-style: normal;
+    font-size: 0.84em;
     color: var(--color-foreground-muted);
+    margin-top: 0.3em;
+}
+
+/* Sphinx .. epigraph:: directive */
+.epigraph {
+    border-left: 3px solid var(--wl-accent, #c9902a);
+    padding: 0.7em 1.2em;
+    margin: 1.6em 2em;
+    font-style: italic;
+    background: var(--wl-epigraph-bg, transparent);
+    border-radius: 0 4px 4px 0;
+}
+.epigraph .attribution {
+    font-style: normal;
+    font-size: 0.84em;
+    color: var(--color-foreground-muted);
+    margin-top: 0.3em;
+}
+
+/* ── Sidebar accent ───────────────────────────────────────────────────────── */
+.sidebar-brand {
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--wl-accent, #c9902a);
 }
