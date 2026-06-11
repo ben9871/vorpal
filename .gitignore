@@ -25,6 +25,10 @@ voices-v*.bin
 firestone/
 miscellaneous/
 
+# Agent config and Docker runtime — local-only
+.claude/
+docker/
+
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
 
