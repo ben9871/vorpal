@@ -6,8 +6,7 @@ implementation detail.
 
 v1 sources:
 - Kokoro single voices (the 8 built-in voices)
-- Kokoro blends (weighted mixes of two or more voice embeddings — a new
-  narrator for free, no training required)
+- Kokoro blends (weighted mixes of two or more voice embeddings; no training required)
 
 Blend recipe: {"blend": {"voice_a": weight_a, "voice_b": weight_b}}
 Weights need not sum to 1 (they are L1-normalized at synthesis time).

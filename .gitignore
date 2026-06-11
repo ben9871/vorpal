@@ -29,6 +29,9 @@ miscellaneous/
 .claude/
 docker/
 
+# Sphinx build output
+sphinx/_build/
+
 # Downloaded test-corpus PDFs (provenance + results live in docs/06-corpus.md)
 corpus/
 

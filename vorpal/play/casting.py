@@ -1,14 +1,12 @@
 """Voice casting: map cast characters to voice-registry entries.
 
 Goals (Phase 34, roadmap Arc 7):
-- the protagonist gets the richest voice matching their gender (configurable;
-  default ``bm_george`` for a male protagonist, ``af_heart`` for a female one)
-- no two characters with more than 50 spoken lines share a voice, while the
-  registry has voices to spare
-- gender is matched where the cast and registry both know it
-- minor/cameo characters cycle through a shared pool; sharing is recorded in
-  the cast sheet's notes so it is never silent
-- stage directions get a dedicated narrator voice (default ``bm_lewis``)
+
+- The protagonist gets the richest voice matching their gender.
+- No two characters with more than 50 spoken lines share a voice.
+- Gender is matched where the cast and registry both know it.
+- Minor/cameo characters cycle through a shared pool; sharing is noted in the cast sheet.
+- Stage directions get a dedicated narrator voice (default ``bm_lewis``).
 
 The cast sheet stores voice *ids*, not VoiceEntry objects, so it JSON
 round-trips cleanly into the play workdir alongside play.json / cast.json.

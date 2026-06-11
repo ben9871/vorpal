@@ -9,13 +9,12 @@ Typical usage:
 
 Model discovery order:
   1. VORPAL_PIPER_MODEL environment variable (path to .onnx file)
-  2. ~/.local/share/vorpal/piper/*.onnx (first match)
-  3. ~/.local/share/piper-tts/*.onnx (first match — common Piper install path)
+  2. ``~/.local/share/vorpal/piper/*.onnx`` (first match)
+  3. ``~/.local/share/piper-tts/*.onnx`` (first match — common Piper install path)
 
-Quality:
-  Piper "low" models (~15 MB) are fast but lower quality than Kokoro.
-  They exist solely to make --draft actually fast on CPU.
-  Never use PiperEngine for the final audiobook build.
+Piper "low" models (~15 MB) are fast but lower quality than Kokoro.
+They exist solely to make ``--draft`` actually fast on CPU.
+Never use PiperEngine for the final audiobook build.
 """
 
 import os
