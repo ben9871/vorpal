@@ -41,6 +41,7 @@ jobs:
       - name: Build Sphinx docs
         run: |
           sphinx-build --keep-going sphinx sphinx/_build/html
+          touch sphinx/_build/html/.nojekyll
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
