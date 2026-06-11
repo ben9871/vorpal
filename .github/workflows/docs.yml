@@ -37,7 +37,7 @@ jobs:
 
       - name: Build Sphinx docs
         run: |
-          python -m sphinx sphinx sphinx/_build/html -W --keep-going
+          sphinx-build -W --keep-going sphinx sphinx/_build/html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
